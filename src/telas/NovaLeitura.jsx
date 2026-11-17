@@ -95,15 +95,19 @@ function CartaoMaquina({ maquina, valor, onChange }) {
   );
 }
 
-function Formulario({ ponto, maquinas, custos }) {
+function Formulario({ ponto, maquinas, custos, fixas }) {
   const { perfil } = useSessao();
   const navegar = useNavigate();
   const [valores, setValores] = useState({});          // por máquina: { entrada, saida, zerado, foto }
   // Custos de manutenção marcados como "despesa do ponto" já entram na lista (dá para remover)
-  const [linhasDespesa, setLinhasDespesa] = useState(() => custos.map((c) => ({
-    descricao: `Manutenção ${c.maquinas?.codigo ?? ''} (${dataSimples(c.data)}): ${c.problema}`,
-    valor: paraCampo(c.custo), categoria: 'manutencao', manutencaoId: c.id,
-  })));
+  // O mesmo vale para as despesas fixas do mês (salário, aluguel...) que ainda não entraram em leitura
+  const [linhasDespesa, setLinhasDespesa] = useState(() => [
+    ...fixas.map((f) => ({ descricao: f.descricao, valor: paraCampo(f.valor), categoria: f.categoria, fixaId: f.id, competencia: f.competencia })),
+    ...custos.map((c) => ({
+      descricao: `Manutenção ${c.maquinas?.codigo ?? ''} (${dataSimples(c.data)}): ${c.problema}`,
+      valor: paraCampo(c.custo), categoria: 'manutencao', manutencaoId: c.id,
+    })),
+  ]);
   const [assinatura, setAssinatura] = useState(null);   // imagem da assinatura do responsável
   const [assinaturaNome, setAssinaturaNome] = useState('');
   const [pontoPago, setPontoPago] = useState(false);
@@ -227,6 +231,7 @@ export default function NovaLeitura() {
   if (!ponto) return <Tela titulo="Nova leitura" voltar="/leitura"><Cartao>Ponto não encontrado.</Cartao></Tela>;
   return (
     <Formulario key={pontoId} ponto={ponto} maquinas={dados.maquinas.filter((m) => m.ponto_id === pontoId)}
-      custos={(dados.custosManutencao ?? []).filter((c) => c.ponto_id === pontoId)} />
+      custos={(dados.custosManutencao ?? []).filter((c) => c.ponto_id === pontoId)}
+      fixas={(dados.despesasFixas ?? []).filter((f) => f.ponto_id === pontoId)} />
   );
 }

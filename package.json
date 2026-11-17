@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "testar:banco": "node supabase/testes/testar_banco.mjs",
-    "testar:calculos": "node --test src/lib/calculos.test.js src/lib/relatorio.test.js src/lib/painel.test.js src/lib/analises.test.js"
+    "testar:calculos": "node --test src/lib/calculos.test.js src/lib/relatorio.test.js src/lib/painel.test.js src/lib/analises.test.js src/lib/rota.test.js"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",

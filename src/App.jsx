@@ -21,6 +21,10 @@ import Pagamentos from './telas/Pagamentos.jsx';
 import Analises from './telas/Analises.jsx';
 import Manutencao from './telas/Manutencao.jsx';
 import ManutencaoMaquina from './telas/ManutencaoMaquina.jsx';
+import DespesasFixas from './telas/DespesasFixas.jsx';
+import Backup from './telas/Backup.jsx';
+import Prospeccao from './telas/Prospeccao.jsx';
+import Rota from './telas/Rota.jsx';
 import DonoInicio from './telas/DonoInicio.jsx';
 import DonoLeitura from './telas/DonoLeitura.jsx';
 
@@ -68,12 +72,16 @@ function Rotas() {
       <Route path="/leituras" element={<Leituras />} />
       <Route path="/leituras/:id" element={<LeituraDetalhe />} />
       <Route path="/pagamentos" element={<Pagamentos />} />
+      <Route path="/rota" element={<Rota />} />
       <Route path="/manutencao" element={<Manutencao />} />
       <Route path="/manutencao/:id" element={<ManutencaoMaquina />} />
       {admin && <>
         <Route path="/leituras/:id/editar" element={<EditarLeitura />} />
         <Route path="/painel" element={<Painel />} />
         <Route path="/analises" element={<Analises />} />
+        <Route path="/despesas-fixas" element={<DespesasFixas />} />
+        <Route path="/backup" element={<Backup />} />
+        <Route path="/prospeccao" element={<Prospeccao />} />
         <Route path="/pontos" element={<Pontos />} />
         <Route path="/pontos/:id" element={<PontoForm />} />
         <Route path="/maquinas" element={<Maquinas />} />

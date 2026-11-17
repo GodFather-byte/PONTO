@@ -21,7 +21,7 @@ await db.exec(`
   grant usage on schema auth to authenticated;
 `);
 // Aplica as migrações na ordem (a 0002 é só do Storage do Supabase e fica de fora)
-for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql', '0004_manutencao_assinatura.sql']) {
+for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql', '0004_manutencao_assinatura.sql', '0005_fixas_backup_prospeccao.sql']) {
   await db.exec(readFileSync(new URL(`../migrations/${arquivo}`, import.meta.url), 'utf8'));
 }
 // No Supabase estes grants já vêm por padrão; quem restringe é o RLS
@@ -201,11 +201,50 @@ r = await como(OPER, comManut(L6, 1400, 50));
 d = (await db.query(`select total_despesas from leituras where id = '${L6}'`)).rows[0];
 ok('O mesmo custo não é cobrado duas vezes', !r.erro && +d.total_despesas === 0, r.erro);
 
+// ---------- Despesas fixas, backup e prospecção (Versão 2) ----------
+await como(ADMIN, `insert into despesas_fixas (id, ponto_id, descricao, categoria, valor, dia_do_mes)
+                   values ('40000000-0000-0000-0000-000000000001', '${P1}', 'Aluguel do espaço', 'outros', 300, 1)`);
+r = await como(OPER, `select * from despesas_fixas_pendentes()`);
+const comp = r.linhas?.[0]?.competencia;
+ok('Despesa fixa vencida aparece como pendente para o operador do ponto', r.linhas?.length === 1 && +r.linhas[0].valor === 300, r.erro);
+r = await como(DONO1, `select * from despesas_fixas_pendentes()`);
+ok('Dono não vê despesas fixas', r.linhas?.length === 0);
+const comFixa = (id, ent) => `select salvar_leitura('${JSON.stringify({
+  id, ponto_id: P1, maquinas: [{ maquina_id: M1, entrada_atual: ent, saida_atual: 50 }],
+  despesas: [{ descricao: 'Aluguel do espaço', valor: 1, despesa_fixa_id: '40000000-0000-0000-0000-000000000001', competencia: comp },
+             { descricao: 'Lanche', valor: 20, categoria: 'outros' }],
+})}'::jsonb)`;
+const L7 = '30000000-0000-0000-0000-000000000007', L8 = '30000000-0000-0000-0000-000000000008';
+r = await como(OPER, comFixa(L7, 1500));
+d = (await db.query(`select total_despesas from leituras where id = '${L7}'`)).rows[0];
+ok('Despesa fixa entra na leitura com o valor do cadastro (300 + 20)', !r.erro && +d.total_despesas === 320, r.erro);
+r = await como(OPER, comFixa(L8, 1600));
+d = (await db.query(`select total_despesas from leituras where id = '${L8}'`)).rows[0];
+ok('A mesma despesa fixa não entra duas vezes no mês', !r.erro && +d.total_despesas === 20, r.erro);
+r = await como(OPER, `select * from despesas_fixas_pendentes()`);
+ok('Depois de lançada, deixa de aparecer como pendente', r.linhas?.length === 0);
+
+r = await como(OPER, `select gerar_backup()`);
+ok('Operador não gera backup', /Somente o Admin/.test(r.erro ?? ''));
+r = await como(ADMIN, `select gerar_backup() id`);
+d = (await db.query(`select jsonb_array_length(dados->'leituras') n, dados ? 'pontos' p, tamanho from backups order by id desc limit 1`)).rows[0];
+ok('Admin gera backup com todos os dados', !r.erro && d.n >= 6 && d.p && d.tamanho > 1000, r.erro);
+r = await como(OPER, `select count(*)::int n from backups`);
+ok('Só o Admin enxerga os backups', r.linhas?.[0].n === 0);
+
+await como(ADMIN, `insert into prospectos (id, nome, endereco, contato, percentual_proposto) values
+                   ('50000000-0000-0000-0000-000000000001', 'Padaria Central', 'Rua B, 20', '(11) 98888-7777', 35)`);
+r = await como(OPER, `select count(*)::int n from prospectos`);
+ok('Operador não vê a prospecção', r.linhas?.[0].n === 0);
+r = await como(ADMIN, `select converter_prospecto('50000000-0000-0000-0000-000000000001') id`);
+d = (await db.query(`select p.nome, p.telefone, p.percentual_ponto, x.status from pontos p join prospectos x on x.ponto_id = p.id`)).rows[0];
+ok('Prospecto fechado vira ponto cadastrado', !r.erro && d?.nome === 'Padaria Central' && d.telefone === '11988887777' && +d.percentual_ponto === 35 && d.status === 'fechado', r.erro);
+
 // ---------- Troca de ponto ----------
 await como(ADMIN, `update maquinas set ponto_id = '${P2}' where id = '${M1}'`);
 r = await db.query(`select count(*)::int n from maquina_movimentacoes where maquina_id = '${M1}'`);
 const hist = await como(DONO1, `select count(*)::int n from leitura_maquinas where maquina_id = '${M1}'`);
-ok('Admin troca máquina de ponto e o histórico fica', r.rows[0].n === 2 && hist.linhas?.[0].n === 4);
+ok('Admin troca máquina de ponto e o histórico fica', r.rows[0].n === 2 && hist.linhas?.[0].n === 6);
 
 console.log(falhas ? `\n${falhas} teste(s) falharam.` : '\nTodos os testes passaram.');
 process.exit(falhas ? 1 : 0);

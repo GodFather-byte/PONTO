@@ -11,7 +11,8 @@ export function lerDespesas(linhas) {
     const valor = paraNumero(l.valor);
     if (!l.descricao.trim() && l.valor === '') continue; // linha em branco é ignorada
     if (!l.descricao.trim() || !valor) return { erro: 'Despesa incompleta: informe descrição e valor maior que zero.' };
-    despesas.push({ descricao: l.descricao.trim(), valor, categoria: l.categoria, ...(l.manutencaoId ? { manutencao_id: l.manutencaoId } : {}) });
+    despesas.push({ descricao: l.descricao.trim(), valor, categoria: l.categoria, ...(l.manutencaoId ? { manutencao_id: l.manutencaoId } : {}),
+      ...(l.fixaId ? { despesa_fixa_id: l.fixaId, competencia: l.competencia } : {}) });
   }
   return { despesas };
 }
@@ -23,11 +24,12 @@ export default function Despesas({ linhas, onChange }) {
       <h2 className="font-semibold">Despesas</h2>
       {linhas.map((l, i) => (
         <div key={i} className="space-y-2 rounded-lg border border-slate-200 p-3">
+          {l.fixaId && <div className="rounded bg-sky-50 px-2 py-1 text-sm font-medium text-sky-900">📌 Despesa fixa do mês {l.competencia.split('-').reverse().join('/')}</div>}
           {l.manutencaoId && <div className="rounded bg-amber-50 px-2 py-1 text-sm font-medium text-amber-900">🔧 Custo de manutenção a descontar nesta leitura</div>}
-          <Campo rotulo="Descrição" disabled={Boolean(l.manutencaoId)} value={l.descricao} onChange={(e) => mudar(i, 'descricao', e.target.value)} />
+          <Campo rotulo="Descrição" disabled={Boolean(l.manutencaoId || l.fixaId)} value={l.descricao} onChange={(e) => mudar(i, 'descricao', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
-            <CampoValor rotulo="Valor (R$)" disabled={Boolean(l.manutencaoId)} value={l.valor} onChange={(v) => mudar(i, 'valor', v)} />
-            <Selecao rotulo="Categoria" disabled={Boolean(l.manutencaoId)} value={l.categoria} onChange={(e) => mudar(i, 'categoria', e.target.value)}>
+            <CampoValor rotulo="Valor (R$)" disabled={Boolean(l.manutencaoId || l.fixaId)} value={l.valor} onChange={(v) => mudar(i, 'valor', v)} />
+            <Selecao rotulo="Categoria" disabled={Boolean(l.manutencaoId || l.fixaId)} value={l.categoria} onChange={(e) => mudar(i, 'categoria', e.target.value)}>
               {CATEGORIAS.map(([v, t]) => <option key={v} value={v}>{t}</option>)}
             </Selecao>
           </div>

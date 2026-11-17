@@ -38,6 +38,7 @@ export default function Inicio() {
       <Botao cor="escuro" onClick={() => navegar('/leituras')}>Leituras</Botao>
       <Botao cor="escuro" onClick={() => navegar('/pagamentos')}>Pagamentos aos pontos</Botao>
       <Botao cor="escuro" onClick={() => navegar('/manutencao')}>Manutenção</Botao>
+      <Botao cor="escuro" onClick={() => navegar('/rota')}>Rota do dia</Botao>
 
       {perfil.papel === 'admin' && <>
         <Botao cor="escuro" onClick={() => navegar('/painel')}>Painel</Botao>
@@ -45,7 +46,10 @@ export default function Inicio() {
         <h2 className="px-1 pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Cadastros</h2>
         <Botao cor="claro" onClick={() => navegar('/pontos')}>Pontos</Botao>
         <Botao cor="claro" onClick={() => navegar('/maquinas')}>Máquinas</Botao>
+        <Botao cor="claro" onClick={() => navegar('/despesas-fixas')}>Despesas fixas</Botao>
+        <Botao cor="claro" onClick={() => navegar('/prospeccao')}>Novos pontos (prospecção)</Botao>
         <Botao cor="claro" onClick={() => navegar('/usuarios')}>Usuários</Botao>
+        <Botao cor="claro" onClick={() => navegar('/backup')}>Backup</Botao>
       </>}
 
       <InstalarApp />

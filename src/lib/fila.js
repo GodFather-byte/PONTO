@@ -26,21 +26,23 @@ export const comLimite = (promessa, ms = 6000) => Promise.race([
 export async function carregarDados() {
   try {
     if (!navigator.onLine) throw new Error('offline');
-    const [pontos, maquinas, custos] = await comLimite(Promise.all([
+    const [pontos, maquinas, custos, fixas] = await comLimite(Promise.all([
       supabase.from('pontos').select('*').eq('ativo', true).order('nome'),
       supabase.from('maquinas').select('*').eq('ativa', true).order('codigo'),
       // Custos de manutenção que ainda vão entrar como despesa na próxima leitura do ponto
       supabase.from('manutencoes').select('id, ponto_id, data, problema, custo, maquinas(codigo)')
         .eq('destino', 'despesa_do_ponto').is('leitura_id', null).gt('custo', 0).order('data'),
+      // Despesas fixas do mês que ainda não entraram em nenhuma leitura
+      supabase.rpc('despesas_fixas_pendentes'),
     ]));
-    if (pontos.error || maquinas.error || custos.error) throw pontos.error || maquinas.error || custos.error;
-    const dados = { pontos: pontos.data, maquinas: maquinas.data, custosManutencao: custos.data, atualizadoEm: new Date().toISOString() };
+    if (pontos.error || maquinas.error || custos.error || fixas.error) throw pontos.error || maquinas.error || custos.error || fixas.error;
+    const dados = { pontos: pontos.data, maquinas: maquinas.data, custosManutencao: custos.data, despesasFixas: fixas.data, atualizadoEm: new Date().toISOString() };
     // Leituras ainda não enviadas já contam como "leitura anterior"
     for (const item of await listarFila()) aplicarNoCache(dados, item.payload);
     await set(CHAVE_DADOS, dados);
     return { ...dados, offline: false };
   } catch {
-    const dados = { pontos: [], maquinas: [], custosManutencao: [], ...((await get(CHAVE_DADOS)) ?? {}) };
+    const dados = { pontos: [], maquinas: [], custosManutencao: [], despesasFixas: [], ...((await get(CHAVE_DADOS)) ?? {}) };
     return { ...dados, offline: true };
   }
 }
@@ -53,6 +55,9 @@ function aplicarNoCache(dados, payload) {
   // Custos de manutenção já lançados nesta leitura não são sugeridos de novo
   const usados = new Set(payload.despesas.map((d) => d.manutencao_id).filter(Boolean));
   if (usados.size) dados.custosManutencao = (dados.custosManutencao ?? []).filter((c) => !usados.has(c.id));
+  // O mesmo vale para as despesas fixas do mês
+  const fixasUsadas = new Set(payload.despesas.filter((d) => d.despesa_fixa_id).map((d) => `${d.despesa_fixa_id}|${d.competencia}`));
+  if (fixasUsadas.size) dados.despesasFixas = (dados.despesasFixas ?? []).filter((f) => !fixasUsadas.has(`${f.id}|${f.competencia}`));
 }
 
 // ---------- Fila ----------
