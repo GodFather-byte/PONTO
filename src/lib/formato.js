@@ -32,3 +32,13 @@ export const CATEGORIAS = [
 ];
 export const nomeCategoria = (c) => CATEGORIAS.find(([k]) => k === c)?.[1] ?? c;
 export const REGRAS = { antes_da_divisao: 'Descontar antes da divisão', so_da_empresa: 'Descontar só da parte da empresa' };
+
+// Pagamento da parte do ponto
+export const FORMAS = { pix: 'Pix', dinheiro: 'Dinheiro' };
+// "2026-11-17" -> "17/11/2026" (datas sem hora)
+export const dataSimples = (dia) => (dia ? String(dia).slice(0, 10).split('-').reverse().join('/') : '');
+// Texto curto da situação do pagamento de uma leitura
+export function situacaoPagamento(l) {
+  if (!(l.partePonto > 0)) return 'Nada a pagar';
+  return l.pagoEm ? `Paga em ${dataSimples(l.pagoEm)} (${FORMAS[l.pagoForma] ?? '—'})` : 'A pagar';
+}

@@ -1,5 +1,5 @@
 // Exportação do período: CSV (abre no Excel / Google Planilhas) e PDF.
-import { dataHora, nomeCategoria } from './formato.js';
+import { dataHora, nomeCategoria, dataSimples, FORMAS } from './formato.js';
 import { totalizar, ranking, controleCaixa, caixaDevido, dataBR } from './painel.js';
 
 const limpo = (t) => String(t).replace(/ /g, ' ');
@@ -20,11 +20,11 @@ export function gerarCsv(linhas) {
 export function csvLeituras(leituras) {
   return gerarCsv([
     ['Data', 'Ponto', 'Operador', 'Entrada', 'Saída', 'Resultado', 'Despesas', '% do ponto', 'Parte do ponto', 'Parte da empresa',
-      'Caixa esperado', 'Ponto pago na hora', 'Valor recolhido', 'Diferença', 'Conferido em', 'Observação'],
+      'Caixa esperado', 'Ponto pago na hora', 'Valor recolhido', 'Diferença', 'Conferido em', 'Ponto pago em', 'Forma de pagamento', 'Observação'],
     ...leituras.map((l) => [
       dataHora(l.dataHora), l.pontoNome, l.operadorNome, l.totalEntrada, l.totalSaida, l.resultado, l.totalDespesas, l.percentual,
       l.partePonto, l.parteEmpresa, caixaDevido(l), l.pontoPago ? 'Sim' : 'Não', l.recolhido, l.diferenca,
-      l.conferidoEm ? dataHora(l.conferidoEm) : '', l.observacao,
+      l.conferidoEm ? dataHora(l.conferidoEm) : '', dataSimples(l.pagoEm), FORMAS[l.pagoForma] ?? '', l.observacao,
     ]),
   ]);
 }

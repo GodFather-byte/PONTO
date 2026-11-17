@@ -7,20 +7,10 @@ import { carregarDados, enfileirar, sincronizar } from '../lib/fila.js';
 import { resumoLocal } from '../lib/leituras.js';
 import { calcularLeitura, calcularMaquina } from '../lib/calculos.js';
 import { paraNumero, numero, moeda } from '../lib/formato.js';
+import { reduzirFoto } from '../lib/fotos.js';
 import { Tela, Cartao, CampoValor, Botao, Marcador, Aviso } from '../componentes/ui.jsx';
 import Despesas, { lerDespesas } from '../componentes/Despesas.jsx';
 import Divisao, { Diferenca } from '../componentes/Divisao.jsx';
-
-// Reduz a foto do contador antes de guardar (economiza internet e espaço)
-async function reduzirFoto(arquivo, lado = 1280) {
-  const img = await createImageBitmap(arquivo);
-  const escala = Math.min(1, lado / Math.max(img.width, img.height));
-  const tela = document.createElement('canvas');
-  tela.width = Math.round(img.width * escala);
-  tela.height = Math.round(img.height * escala);
-  tela.getContext('2d').drawImage(img, 0, 0, tela.width, tela.height);
-  return new Promise((ok) => tela.toBlob(ok, 'image/jpeg', 0.7));
-}
 
 function EscolherPonto({ dados }) {
   return (

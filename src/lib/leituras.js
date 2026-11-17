@@ -16,6 +16,9 @@ export function resumoLocal({ id, ponto, operadorNome, dataHora, maquinas, despe
     despesas, totalEntrada: c.totalEntrada, totalSaida: c.totalSaida, resultado: c.resultado,
     totalDespesas: c.totalDespesas, partePonto: c.partePonto, parteEmpresa: c.parteEmpresa,
     caixaEsperado: c.caixaEsperado, caixaAposPonto: c.caixaAposPonto,
+    // pago na hora = pago em dinheiro no dia da leitura (mesma regra do servidor)
+    pagoEm: pontoPago ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(dataHora)) : null,
+    pagoForma: pontoPago ? 'dinheiro' : null, pagoComprovante: null,
     pontoPago, recolhido, diferenca: c.diferenca, observacao, conferidoEm: null, pendente: true,
   };
 }
@@ -40,6 +43,7 @@ export function resumoServidor(l) {
     totalDespesas: n(l.total_despesas), partePonto: n(l.parte_ponto), parteEmpresa: n(l.parte_empresa),
     caixaEsperado: n(l.caixa_esperado), caixaAposPonto: n(l.caixa_apos_ponto),
     pontoPago: l.ponto_pago_na_hora, recolhido: n(l.valor_recolhido), diferenca: n(l.diferenca),
+    pagoEm: l.pago_em ?? null, pagoForma: l.pago_forma ?? null, pagoComprovante: l.pago_comprovante ?? null,
     observacao: l.observacao, conferidoEm: l.conferido_em, pendente: false,
   };
 }
@@ -97,6 +101,17 @@ export async function listarLeiturasDoMes(pontoId, mes) {
   const { data, error } = await supabase.from('leituras').select('*, pontos(nome, telefone), despesas(*)')
     .eq('ponto_id', pontoId).gte('data_local', `${mes}-01`).lt('data_local', fim)
     .order('data_hora', { ascending: false });
+  if (error) throw error;
+  return data.map(resumoServidor);
+}
+
+// ---------- Pagamentos aos pontos (Versão 2) ----------
+// Leituras cuja parte do ponto ainda não foi paga (de todos os pontos que a pessoa acessa, ou de um só)
+export async function listarPendentesDePagamento(pontoId) {
+  let q = supabase.from('leituras').select('*, pontos(nome, telefone)')
+    .is('pago_em', null).gt('parte_ponto', 0).order('data_hora', { ascending: true }).limit(1000);
+  if (pontoId) q = q.eq('ponto_id', pontoId);
+  const { data, error } = await q;
   if (error) throw error;
   return data.map(resumoServidor);
 }

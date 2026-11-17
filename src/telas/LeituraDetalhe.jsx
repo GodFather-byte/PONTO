@@ -9,6 +9,7 @@ import { moeda, numero, dataHora, nomeCategoria } from '../lib/formato.js';
 import { Tela, Cartao, Botao, Aviso, Linha } from '../componentes/ui.jsx';
 import Divisao, { Diferenca } from '../componentes/Divisao.jsx';
 import FotoContador from '../componentes/FotoContador.jsx';
+import Pagamento from '../componentes/Pagamento.jsx';
 import { textoRelatorio, linkWhatsApp, entregarPdf } from '../lib/relatorio.js';
 
 export default function LeituraDetalhe() {
@@ -103,11 +104,12 @@ export default function LeituraDetalhe() {
       <Divisao c={l} percentual={l.percentual} regra={l.regra} pontoPago={l.pontoPago} />
 
       <Cartao className="space-y-2">
-        <Linha rotulo="Parte do ponto" valor={l.pontoPago ? 'Paga na hora' : 'A pagar'} />
         <Linha rotulo="Valor recolhido" valor={l.recolhido === null ? 'Não informado' : moeda(l.recolhido)} forte />
         <Diferenca valor={l.diferenca} />
         {l.observacao && <p className="pt-1 text-slate-700">Obs.: {l.observacao}</p>}
       </Cartao>
+
+      <Pagamento l={l} papel={perfil.papel} aoMudar={() => buscarLeitura(id).then(setL)} />
 
       <Cartao className="space-y-3">
         <h2 className="font-semibold">Relatório</h2>

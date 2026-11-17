@@ -20,7 +20,10 @@ await db.exec(`
     $$ select nullif(current_setting('teste.uid', true), '')::uuid $$;
   grant usage on schema auth to authenticated;
 `);
-await db.exec(readFileSync(new URL('../migrations/0001_estrutura.sql', import.meta.url), 'utf8'));
+// Aplica as migrações na ordem (a 0002 é só do Storage do Supabase e fica de fora)
+for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql']) {
+  await db.exec(readFileSync(new URL(`../migrations/${arquivo}`, import.meta.url), 'utf8'));
+}
 // No Supabase estes grants já vêm por padrão; quem restringe é o RLS
 await db.exec(`
   grant usage on schema public to authenticated;
@@ -149,6 +152,26 @@ d = (await db.query(`select l.*, (select count(*)::int from leitura_alteracoes w
 ok('Admin edita, contas são refeitas e o histórico é gravado', !r.erro && +d.resultado === 250 && +d.parte_ponto === 100 &&
   +d.caixa_apos_ponto === 150 && +d.diferenca === -120 && d.alt === 1 && +d.maq === 300,
   r.erro ?? `resultado ${d.resultado}, ponto ${d.parte_ponto}, diferença ${d.diferenca}`);
+
+// ---------- Pagamentos aos pontos (Versão 2) ----------
+r = await como(DONO1, `select registrar_pagamento('${L1}', current_date, 'pix')`);
+ok('Dono não registra pagamento', /Sem permissão/.test(r.erro ?? ''));
+r = await como(OPER, `select registrar_pagamento('${L1}', current_date, 'pix', 'p/l/comprovante.jpg')`);
+d = (await db.query(`select pago_em, pago_forma, pago_comprovante, pago_por from leituras where id = '${L1}'`)).rows[0];
+ok('Operador registra pagamento (Pix, com comprovante)', !r.erro && d.pago_em && d.pago_forma === 'pix' && d.pago_comprovante && d.pago_por === OPER, r.erro);
+r = await como(OPER, `select registrar_pagamento('${L1}', current_date, 'dinheiro')`);
+ok('Pagamento em dobro é recusado', /já foi registrado/.test(r.erro ?? ''));
+r = await como(DONO1, `select pago_forma from leituras where id = '${L1}'`);
+ok('Dono vê o pagamento do próprio ponto', r.linhas?.[0]?.pago_forma === 'pix');
+r = await como(OPER, `select desfazer_pagamento('${L1}')`);
+ok('Operador não desfaz pagamento', /Somente o Admin/.test(r.erro ?? ''));
+r = await como(ADMIN, `select desfazer_pagamento('${L1}')`);
+d = (await db.query(`select pago_em from leituras where id = '${L1}'`)).rows[0];
+ok('Admin desfaz pagamento', !r.erro && d.pago_em === null, r.erro);
+d = (await db.query(`select pago_em, pago_forma, ponto_pago_na_hora from leituras where id = '${L2}'`)).rows[0];
+ok('Leitura "paga na hora" já nasce paga em dinheiro', d.ponto_pago_na_hora && d.pago_em && d.pago_forma === 'dinheiro');
+r = await como(ADMIN, `select desfazer_pagamento('${L2}')`);
+ok('Pagamento "na hora" só muda pela edição da leitura', /Editar leitura/.test(r.erro ?? ''));
 
 // ---------- Troca de ponto ----------
 await como(ADMIN, `update maquinas set ponto_id = '${P2}' where id = '${M1}'`);

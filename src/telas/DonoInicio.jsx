@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
 import { useSessao } from '../lib/sessao.jsx';
-import { listarLeiturasDoMes, ultimosMeses, mesAtual } from '../lib/leituras.js';
+import { listarLeiturasDoMes, listarPendentesDePagamento, ultimosMeses, mesAtual } from '../lib/leituras.js';
 import { moeda, dataHora, percentual } from '../lib/formato.js';
 import InstalarApp from '../componentes/InstalarApp.jsx';
 import { Tela, Cartao, Selecao, Aviso, Linha } from '../componentes/ui.jsx';
@@ -17,6 +17,7 @@ export default function DonoInicio() {
   const [pontoId, setPontoId] = useState(sessionStorage.getItem('dono-ponto') ?? '');
   const [mes, setMes] = useState(sessionStorage.getItem('dono-mes') ?? mesAtual());
   const [leituras, setLeituras] = useState(null);
+  const [aReceber, setAReceber] = useState(null); // leituras do ponto ainda não pagas (qualquer mês)
   const [erro, setErro] = useState('');
 
   useEffect(() => {
@@ -32,6 +33,7 @@ export default function DonoInicio() {
     sessionStorage.setItem('dono-ponto', pontoId); sessionStorage.setItem('dono-mes', mes); // lembra ao voltar do detalhe
     setLeituras(null);
     listarLeiturasDoMes(pontoId, mes).then(setLeituras).catch((e) => setErro(e.message));
+    listarPendentesDePagamento(pontoId).then(setAReceber).catch(() => setAReceber(null));
   }, [pontoId, mes]);
 
   const ponto = pontos?.find((p) => p.id === pontoId);
@@ -73,6 +75,11 @@ export default function DonoInicio() {
               <Linha rotulo="Resultado" valor={moeda(soma(leituras, 'resultado'))} forte />
               <Linha rotulo="Despesas" valor={moeda(soma(leituras, 'totalDespesas'))} />
             </Cartao>
+            {aReceber?.length > 0 && (
+              <Cartao>
+                <Linha rotulo={`A receber (${aReceber.length} leitura(s) em aberto)`} valor={moeda(soma(aReceber, 'partePonto'))} forte />
+              </Cartao>
+            )}
             {aConferir > 0 && <Aviso>{aConferir} leitura(s) esperando a sua conferência.</Aviso>}
           </>
         )}
@@ -93,6 +100,11 @@ export default function DonoInicio() {
               <span className={`mt-1 inline-block rounded px-2 py-1 text-xs font-semibold ${l.conferidoEm ? 'bg-emerald-100 text-emerald-900' : 'bg-amber-100 text-amber-900'}`}>
                 {l.conferidoEm ? 'Conferido' : 'A conferir'}
               </span>
+              {l.partePonto > 0 && (
+                <span className={`ml-2 mt-1 inline-block rounded px-2 py-1 text-xs font-semibold ${l.pagoEm ? 'bg-emerald-100 text-emerald-900' : 'bg-slate-200 text-slate-800'}`}>
+                  {l.pagoEm ? 'Recebido' : 'A receber'}
+                </span>
+              )}
             </Cartao>
           </Link>
         ))}

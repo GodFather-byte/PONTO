@@ -1,6 +1,6 @@
 // Relatório da leitura: texto pronto para o WhatsApp e PDF.
 // Os dois usam o mesmo "resumo" da leitura (ver lib/leituras.js).
-import { moeda, numero, dataHora, percentual, nomeCategoria, REGRAS } from './formato.js';
+import { moeda, numero, dataHora, percentual, nomeCategoria, REGRAS, situacaoPagamento } from './formato.js';
 
 // O formatador de moeda usa um espaço especial entre "R$" e o valor; troca por espaço comum
 const limpo = (t) => String(t).replace(/ /g, ' ');
@@ -50,7 +50,7 @@ export function textoRelatorio(l) {
   t.push('', '*CAIXA*',
     `Valor que deve estar em caixa: *${rs(l.caixaEsperado)}*`,
     `Após pagar o ponto: ${rs(l.caixaAposPonto)}`,
-    `Parte do ponto: ${l.pontoPago ? 'paga na hora' : 'a pagar'}`);
+    `Parte do ponto: ${situacaoPagamento(l).toLowerCase()}`);
   if (l.recolhido !== null && l.recolhido !== undefined) {
     t.push(`Valor recolhido: ${rs(l.recolhido)}`, `Conferência: ${textoDiferenca(l)}`);
   }
@@ -119,7 +119,7 @@ export async function gerarPdf(l) {
     [`Parte do ponto (${percentual(l.percentual)})`, rs(l.partePonto)],
     ['Parte da empresa', rs(l.parteEmpresa)],
     ['Caixa após pagar o ponto', rs(l.caixaAposPonto)],
-    ['Parte do ponto', l.pontoPago ? 'Paga na hora' : 'A pagar'],
+    ['Pagamento ao ponto', situacaoPagamento(l)],
   ];
   if (l.recolhido !== null && l.recolhido !== undefined) {
     linhas.push(['Valor recolhido', rs(l.recolhido)], ['Conferência', textoDiferenca(l)]);

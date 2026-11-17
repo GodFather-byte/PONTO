@@ -17,6 +17,8 @@ import Leituras from './telas/Leituras.jsx';
 import LeituraDetalhe from './telas/LeituraDetalhe.jsx';
 import EditarLeitura from './telas/EditarLeitura.jsx';
 import Painel from './telas/Painel.jsx';
+import Pagamentos from './telas/Pagamentos.jsx';
+import Analises from './telas/Analises.jsx';
 import DonoInicio from './telas/DonoInicio.jsx';
 import DonoLeitura from './telas/DonoLeitura.jsx';
 
@@ -63,9 +65,11 @@ function Rotas() {
       <Route path="/leitura/:pontoId" element={<NovaLeitura />} />
       <Route path="/leituras" element={<Leituras />} />
       <Route path="/leituras/:id" element={<LeituraDetalhe />} />
+      <Route path="/pagamentos" element={<Pagamentos />} />
       {admin && <>
         <Route path="/leituras/:id/editar" element={<EditarLeitura />} />
         <Route path="/painel" element={<Painel />} />
+        <Route path="/analises" element={<Analises />} />
         <Route path="/pontos" element={<Pontos />} />
         <Route path="/pontos/:id" element={<PontoForm />} />
         <Route path="/maquinas" element={<Maquinas />} />

@@ -7,6 +7,7 @@ import { buscarLeitura } from '../lib/leituras.js';
 import { moeda, numero, dataHora, percentual, nomeCategoria, REGRAS } from '../lib/formato.js';
 import { Tela, Cartao, Botao, Aviso, Linha } from '../componentes/ui.jsx';
 import FotoContador from '../componentes/FotoContador.jsx';
+import Pagamento from '../componentes/Pagamento.jsx';
 
 export default function DonoLeitura() {
   const { id } = useParams();
@@ -31,7 +32,7 @@ export default function DonoLeitura() {
       <div className="rounded-xl bg-slate-900 p-4 text-center text-white shadow">
         <div className="text-sm font-semibold tracking-wide">SUA PARTE ({percentual(l.percentual)})</div>
         <div className="py-1 text-4xl font-bold tabular-nums">{moeda(l.partePonto)}</div>
-        <div className="text-sm text-slate-300">{l.pontoPago ? 'Paga na hora da leitura' : 'A receber'}</div>
+        <div className="text-sm text-slate-300">{l.pagoEm ? 'Já recebida' : l.partePonto > 0 ? 'A receber' : ''}</div>
       </div>
 
       <Cartao>
@@ -65,6 +66,7 @@ export default function DonoLeitura() {
         </Cartao>
       )}
 
+      <Pagamento l={l} papel="dono" />
       {l.observacao && <Cartao>Obs.: {l.observacao}</Cartao>}
 
       <Aviso tom="erro">{erro}</Aviso>

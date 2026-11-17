@@ -11,6 +11,13 @@ App web (PWA) para registrar leituras de máquinas em pontos, com divisão de re
 - [x] Etapa 5 — Painel do admin + exportação
 - [ ] Etapa 6 — Passo a passo de publicação
 
+## Versão 2
+
+- [x] Bloco 1 — Pagamentos aos pontos, comparativo mensal, média por máquina, desempenho do operador
+- [ ] Bloco 2 — Manutenção e assinatura na tela
+- [ ] Bloco 3 — Backup e despesas fixas
+- [ ] Bloco 4 — Prospecção de pontos e rota do dia
+
 ## Rodar no computador
 
 ```bash
@@ -19,7 +26,7 @@ cp .env.example .env      # preencha com a URL e a chave pública do Supabase
 npm run dev
 ```
 
-No Supabase, rode `supabase/migrations/0001_estrutura.sql` e depois `0002_fotos.sql` no SQL Editor.
+No Supabase, rode os arquivos de `supabase/migrations/` na ordem do número no SQL Editor.
 O primeiro Admin é definido uma vez pelo SQL Editor, depois de criar a conta no app:
 
 ```sql
