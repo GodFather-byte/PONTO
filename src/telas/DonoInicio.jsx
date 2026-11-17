@@ -6,6 +6,7 @@ import { supabase } from '../lib/supabase.js';
 import { useSessao } from '../lib/sessao.jsx';
 import { listarLeiturasDoMes, ultimosMeses, mesAtual } from '../lib/leituras.js';
 import { moeda, dataHora, percentual } from '../lib/formato.js';
+import InstalarApp from '../componentes/InstalarApp.jsx';
 import { Tela, Cartao, Selecao, Aviso, Linha } from '../componentes/ui.jsx';
 
 const soma = (lista, campo) => lista.reduce((s, l) => s + (l[campo] || 0), 0);
@@ -41,6 +42,7 @@ export default function DonoInicio() {
       acao={<button onClick={sair} className="rounded-lg px-3 py-2 text-sm text-slate-300 underline">Sair</button>}>
       <p className="px-1 text-slate-600">Olá, {perfil.nome || perfil.email}</p>
       <Aviso tom="erro">{erro}</Aviso>
+      <InstalarApp />
 
       {pontos?.length === 0 && (
         <Cartao>Sua conta está criada. Assim que o administrador liberar o seu ponto, as leituras aparecem aqui.</Cartao>

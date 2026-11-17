@@ -1,6 +1,7 @@
 // Entrar ou criar conta. Toda conta nova nasce sem acesso; o Admin libera depois.
 import { useState } from 'react';
 import { supabase } from '../lib/supabase.js';
+import InstalarApp from '../componentes/InstalarApp.jsx';
 import { Tela, Cartao, Campo, Botao, Aviso } from '../componentes/ui.jsx';
 
 const ERROS = {
@@ -44,6 +45,7 @@ export default function Login() {
       <Botao cor="claro" onClick={() => { setCriando(!criando); setMsg(null); }}>
         {criando ? 'Já tenho conta' : 'Criar conta nova'}
       </Botao>
+      <InstalarApp />
     </Tela>
   );
 }

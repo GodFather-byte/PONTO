@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSessao } from '../lib/sessao.jsx';
 import { listarFila, aoMudarFila, sincronizar } from '../lib/fila.js';
+import InstalarApp from '../componentes/InstalarApp.jsx';
 import { Tela, Botao, Aviso } from '../componentes/ui.jsx';
 
 export default function Inicio() {
@@ -44,6 +45,7 @@ export default function Inicio() {
         <Botao cor="claro" onClick={() => navegar('/usuarios')}>Usuários</Botao>
       </>}
 
+      <InstalarApp />
       <button onClick={sair} className="mx-auto block py-4 text-slate-500 underline">Sair</button>
     </Tela>
   );
