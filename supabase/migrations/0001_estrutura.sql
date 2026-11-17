@@ -183,7 +183,7 @@ $$;
 create function calcular_divisao(
   p_resultado numeric, p_despesas numeric, p_percentual numeric, p_regra regra_despesa
 ) returns table (parte_ponto numeric, parte_empresa numeric, caixa_esperado numeric, caixa_apos_ponto numeric)
-language plpgsql immutable as $$
+language plpgsql immutable set search_path = public as $$
 declare
   v_base numeric;
 begin
@@ -220,7 +220,7 @@ create trigger ao_criar_usuario after insert on auth.users
 
 -- Máquina nova: a leitura inicial vira a "última leitura conhecida"
 create function maquina_antes_inserir() returns trigger
-language plpgsql as $$
+language plpgsql set search_path = public as $$
 begin
   new.entrada_atual := coalesce(new.entrada_atual, new.leitura_inicial_entrada);
   new.saida_atual   := coalesce(new.saida_atual,   new.leitura_inicial_saida);
