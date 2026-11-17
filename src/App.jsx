@@ -16,6 +16,8 @@ import NovaLeitura from './telas/NovaLeitura.jsx';
 import Leituras from './telas/Leituras.jsx';
 import LeituraDetalhe from './telas/LeituraDetalhe.jsx';
 import EditarLeitura from './telas/EditarLeitura.jsx';
+import DonoInicio from './telas/DonoInicio.jsx';
+import DonoLeitura from './telas/DonoLeitura.jsx';
 
 function Mensagem({ titulo, children }) {
   const sessao = useSessao();
@@ -41,12 +43,14 @@ function Rotas() {
   if (carregando) return <Mensagem titulo="Carregando…">Aguarde um instante.</Mensagem>;
   if (!perfil.ativo) return <Mensagem titulo="Acesso desativado">Fale com o administrador.</Mensagem>;
 
-  // Dono do ponto: a área dele (somente visualização) entra na Etapa 4
+  // Dono do ponto: área só de visualização (e o botão "Conferido")
   if (perfil.papel === 'dono') {
     return (
-      <Mensagem titulo={`Olá, ${perfil.nome || 'bem-vindo'}!`}>
-        Sua conta está criada. Assim que o administrador liberar o seu ponto, as leituras aparecem aqui.
-      </Mensagem>
+      <Routes>
+        <Route path="/" element={<DonoInicio />} />
+        <Route path="/leituras/:id" element={<DonoLeitura />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
     );
   }
 

@@ -73,3 +73,30 @@ export async function listarLeituras(pontoId) {
   } catch { offline = true; }
   return { leituras: [...pendentes, ...salvas], offline };
 }
+
+// ---------- Área do dono do ponto ----------
+// Mês atual no fuso de São Paulo, no formato "2026-11"
+export const mesAtual = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()).slice(0, 7);
+
+// Últimos 12 meses para o seletor: [{ valor: "2026-11", texto: "novembro de 2026" }, ...]
+export function ultimosMeses(qtd = 12) {
+  const [ano, mes] = mesAtual().split('-').map(Number);
+  return Array.from({ length: qtd }, (_, i) => {
+    const d = new Date(Date.UTC(ano, mes - 1 - i, 15));
+    return {
+      valor: d.toISOString().slice(0, 7),
+      texto: new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(d),
+    };
+  });
+}
+
+// Leituras de um ponto em um mês (com despesas, para somar)
+export async function listarLeiturasDoMes(pontoId, mes) {
+  const [ano, m] = mes.split('-').map(Number);
+  const fim = new Date(Date.UTC(ano, m, 1)).toISOString().slice(0, 10); // primeiro dia do mês seguinte
+  const { data, error } = await supabase.from('leituras').select('*, pontos(nome, telefone), despesas(*)')
+    .eq('ponto_id', pontoId).gte('data_local', `${mes}-01`).lt('data_local', fim)
+    .order('data_hora', { ascending: false });
+  if (error) throw error;
+  return data.map(resumoServidor);
+}

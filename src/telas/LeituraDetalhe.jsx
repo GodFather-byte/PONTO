@@ -8,14 +8,8 @@ import { aoMudarFila, sincronizar, removerDaFila } from '../lib/fila.js';
 import { moeda, numero, dataHora, nomeCategoria } from '../lib/formato.js';
 import { Tela, Cartao, Botao, Aviso, Linha } from '../componentes/ui.jsx';
 import Divisao, { Diferenca } from '../componentes/Divisao.jsx';
+import FotoContador from '../componentes/FotoContador.jsx';
 import { textoRelatorio, linkWhatsApp, entregarPdf } from '../lib/relatorio.js';
-
-// Abre a foto do contador (o bucket é privado, então gera um link temporário)
-async function abrirFoto(caminho) {
-  const { data, error } = await supabase.storage.from('contadores').createSignedUrl(caminho, 300);
-  if (error) window.alert('Foto ainda não disponível (pode estar esperando envio).');
-  else window.open(data.signedUrl, '_blank');
-}
 
 export default function LeituraDetalhe() {
   const { id } = useParams();
@@ -93,9 +87,7 @@ export default function LeituraDetalhe() {
           <Linha rotulo={`Entrada (${numero(m.entradaAnterior)} → ${numero(m.entradaAtual)})`} valor={moeda(m.entrada)} />
           <Linha rotulo={`Saída (${numero(m.saidaAnterior)} → ${numero(m.saidaAtual)})`} valor={moeda(m.saida)} />
           <Linha rotulo="Resultado" valor={moeda(m.resultado)} forte />
-          {m.fotoCaminho && (
-            <button onClick={() => abrirFoto(m.fotoCaminho)} className="pt-1 font-medium text-emerald-700 underline">📷 Ver foto do contador</button>
-          )}
+          <FotoContador caminho={m.fotoCaminho} />
         </Cartao>
       ))}
 
