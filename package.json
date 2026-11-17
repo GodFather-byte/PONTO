@@ -1,0 +1,11 @@
+{
+  "name": "controle-de-maquinas",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "testar:banco": "node supabase/testes/testar_banco.mjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.2.17"
+  }
+}
