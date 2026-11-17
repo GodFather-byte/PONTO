@@ -1,0 +1,6 @@
+@import "tailwindcss";
+
+/* Base pensada para celular: fundo claro, toque grande, sem zoom ao focar campo */
+html, body, #root { height: 100%; }
+body { @apply bg-slate-100 text-slate-900 antialiased; }
+input, select, textarea { font-size: 16px; }

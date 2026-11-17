@@ -20,6 +20,7 @@ create type categoria_despesa  as enum ('salario', 'produto', 'manutencao', 'san
 create table perfis (
   id         uuid primary key references auth.users(id) on delete cascade,
   nome       text not null default '',
+  email      text not null default '',
   papel      papel_usuario not null default 'dono',  -- nasce com o menor acesso
   ativo      boolean not null default true,
   criado_em  timestamptz not null default now()
@@ -96,8 +97,9 @@ create table leituras (
   parte_empresa     numeric(14,2) not null default 0,
   caixa_esperado    numeric(14,2) not null default 0,  -- antes de pagar o ponto
   caixa_apos_ponto  numeric(14,2) not null default 0,  -- depois de pagar o ponto
+  ponto_pago_na_hora boolean not null default false,  -- operador já pagou a parte do ponto?
   valor_recolhido   numeric(14,2),
-  diferenca         numeric(14,2),                     -- recolhido − caixa_esperado
+  diferenca         numeric(14,2),  -- recolhido − caixa (após o ponto, se foi pago na hora; senão o esperado)
   observacao        text not null default '',
   -- "Conferido" pelo dono do ponto
   conferido_em      timestamptz,
@@ -188,11 +190,12 @@ begin
   if p_regra = 'antes_da_divisao' then
     -- despesa sai antes: os dois lados dividem o que sobrou
     v_base        := p_resultado - p_despesas;
-    parte_ponto   := round(v_base * p_percentual / 100, 2);
+    -- resultado negativo: o ponto não divide prejuízo (fica com zero)
+    parte_ponto   := greatest(0, round(v_base * p_percentual / 100, 2));
     parte_empresa := v_base - parte_ponto;
   else
     -- despesa sai só da parte da empresa
-    parte_ponto   := round(p_resultado * p_percentual / 100, 2);
+    parte_ponto   := greatest(0, round(p_resultado * p_percentual / 100, 2));
     parte_empresa := p_resultado - parte_ponto - p_despesas;
   end if;
   caixa_esperado   := p_resultado - p_despesas;        -- antes de pagar o ponto
@@ -207,8 +210,8 @@ end $$;
 create function criar_perfil_novo_usuario() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
-  insert into perfis (id, nome)
-  values (new.id, coalesce(new.raw_user_meta_data->>'nome', ''));
+  insert into perfis (id, nome, email)
+  values (new.id, coalesce(new.raw_user_meta_data->>'nome', ''), coalesce(new.email, ''));
   return new;
 end $$;
 
@@ -242,9 +245,46 @@ create trigger maquina_aiu after insert or update on maquinas
   for each row execute function maquina_registrar_movimentacao();
 
 -- =====================================================================
+-- Funções internas (não são chamadas direto pelo app)
+-- =====================================================================
+-- Soma máquinas e despesas da leitura e refaz divisão, caixa e diferença
+create function recalcular_leitura(p_id uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_l    leituras%rowtype;
+  v_ent  numeric;  v_sai numeric;  v_desp numeric;
+  v_div  record;
+begin
+  select * into v_l from leituras where id = p_id;
+  select coalesce(sum(entrada_periodo), 0), coalesce(sum(saida_periodo), 0)
+    into v_ent, v_sai from leitura_maquinas where leitura_id = p_id;
+  select coalesce(sum(valor), 0) into v_desp from despesas where leitura_id = p_id;
+  select * into v_div from calcular_divisao(v_ent - v_sai, v_desp, v_l.percentual_ponto, v_l.regra_despesa);
+
+  update leituras set
+    total_entrada = v_ent, total_saida = v_sai, resultado = v_ent - v_sai, total_despesas = v_desp,
+    parte_ponto = v_div.parte_ponto, parte_empresa = v_div.parte_empresa,
+    caixa_esperado = v_div.caixa_esperado, caixa_apos_ponto = v_div.caixa_apos_ponto,
+    diferenca = valor_recolhido - case when ponto_pago_na_hora then v_div.caixa_apos_ponto
+                                       else v_div.caixa_esperado end
+  where id = p_id;
+end $$;
+
+-- Fotografia completa da leitura (usada no histórico de alterações)
+create function leitura_json(p_id uuid) returns jsonb
+language sql stable security definer set search_path = public as $$
+  select jsonb_build_object(
+    'leitura',  to_jsonb(l),
+    'maquinas', (select coalesce(jsonb_agg(to_jsonb(m) order by m.id), '[]') from leitura_maquinas m where m.leitura_id = l.id),
+    'despesas', (select coalesce(jsonb_agg(to_jsonb(d) order by d.id), '[]') from despesas d where d.leitura_id = l.id))
+  from leituras l where l.id = p_id
+$$;
+
+-- =====================================================================
 -- Salvar leitura (admin e operador). Tudo ou nada, e refaz as contas.
 -- Formato do JSON:
 -- { "id": uuid, "ponto_id": uuid, "data_hora": "...", "valor_recolhido": 0, "observacao": "",
+--   "ponto_pago_na_hora": false,
 --   "maquinas": [{ "maquina_id": uuid, "entrada_atual": 0, "saida_atual": 0,
 --                  "contador_zerado": false, "foto_caminho": null }],
 --   "despesas": [{ "descricao": "", "valor": 0, "categoria": "outros" }] }
@@ -260,10 +300,8 @@ declare
   v_ent       numeric;  v_sai numeric;
   v_ent_per   numeric;  v_sai_per numeric;
   v_zerado    boolean;
-  v_tot_ent   numeric := 0;  v_tot_sai numeric := 0;  v_tot_desp numeric := 0;
   v_quando    timestamptz;
   v_recolhido numeric := nullif(p->>'valor_recolhido', '')::numeric;
-  v_div       record;
 begin
   if coalesce(papel_atual() in ('admin', 'operador'), false) is not true then
     raise exception 'Sem permissão para registrar leitura.';
@@ -286,10 +324,11 @@ begin
   v_quando := least(coalesce((p->>'data_hora')::timestamptz, now()), now());
 
   insert into leituras (id, ponto_id, data_hora, data_local, operador_id, operador_nome,
-                        percentual_ponto, regra_despesa, valor_recolhido, observacao)
+                        percentual_ponto, regra_despesa, valor_recolhido, observacao, ponto_pago_na_hora)
   values (v_id, v_ponto.id, v_quando, (v_quando at time zone 'America/Sao_Paulo')::date, v_uid,
           (select nome from perfis where id = v_uid),
-          v_ponto.percentual_ponto, v_ponto.regra_despesa, v_recolhido, coalesce(p->>'observacao', ''));
+          v_ponto.percentual_ponto, v_ponto.regra_despesa, v_recolhido, coalesce(p->>'observacao', ''),
+          coalesce((p->>'ponto_pago_na_hora')::boolean, false));
 
   for v_item in select * from jsonb_array_elements(p->'maquinas') loop
     select * into v_maq from maquinas
@@ -318,30 +357,90 @@ begin
             v_ent_per, v_sai_per, v_ent_per - v_sai_per, v_item->>'foto_caminho');
 
     update maquinas set entrada_atual = v_ent, saida_atual = v_sai where id = v_maq.id;
-
-    v_tot_ent := v_tot_ent + v_ent_per;
-    v_tot_sai := v_tot_sai + v_sai_per;
   end loop;
 
   for v_item in select * from jsonb_array_elements(coalesce(p->'despesas', '[]'::jsonb)) loop
     insert into despesas (leitura_id, descricao, valor, categoria)
     values (v_id, v_item->>'descricao', (v_item->>'valor')::numeric,
             coalesce(v_item->>'categoria', 'outros')::categoria_despesa);
-    v_tot_desp := v_tot_desp + (v_item->>'valor')::numeric;
   end loop;
 
-  select * into v_div from calcular_divisao(v_tot_ent - v_tot_sai, v_tot_desp,
-                                            v_ponto.percentual_ponto, v_ponto.regra_despesa);
+  perform recalcular_leitura(v_id);
+  return v_id;
+end $$;
+
+-- =====================================================================
+-- Editar leitura já salva (somente Admin), guardando o antes e o depois.
+-- JSON aceita (tudo opcional): valor_recolhido, observacao, ponto_pago_na_hora,
+--   maquinas: [{ maquina_id, entrada_atual, saida_atual, contador_zerado }],
+--   despesas: [{ descricao, valor, categoria }]  (substitui a lista inteira)
+-- =====================================================================
+create function editar_leitura(p_id uuid, p jsonb, p_motivo text) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  v_antes   jsonb;
+  v_item    jsonb;
+  v_lm      leitura_maquinas%rowtype;
+  v_quando  timestamptz;
+  v_ent     numeric;  v_sai numeric;
+  v_zerado  boolean;
+begin
+  if not eh_admin() then
+    raise exception 'Somente o Admin pode editar uma leitura salva.';
+  end if;
+  if coalesce(trim(p_motivo), '') = '' then
+    raise exception 'Informe o motivo da alteração.';
+  end if;
+  select data_hora into v_quando from leituras where id = p_id for update;
+  if not found then
+    raise exception 'Leitura não encontrada.';
+  end if;
+  v_antes := leitura_json(p_id);
+
+  for v_item in select * from jsonb_array_elements(coalesce(p->'maquinas', '[]'::jsonb)) loop
+    select * into v_lm from leitura_maquinas
+     where leitura_id = p_id and maquina_id = (v_item->>'maquina_id')::uuid for update;
+    if not found then
+      raise exception 'Máquina não faz parte desta leitura.';
+    end if;
+    v_ent    := (v_item->>'entrada_atual')::numeric;
+    v_sai    := (v_item->>'saida_atual')::numeric;
+    v_zerado := coalesce((v_item->>'contador_zerado')::boolean, v_lm.contador_zerado);
+    if (v_ent < v_lm.entrada_anterior or v_sai < v_lm.saida_anterior) and not v_zerado then
+      raise exception 'Leitura atual menor que a anterior. Corrija ou marque "contador zerado".';
+    end if;
+
+    update leitura_maquinas set
+      entrada_atual = v_ent, saida_atual = v_sai, contador_zerado = v_zerado,
+      entrada_periodo = case when v_ent < entrada_anterior then v_ent else v_ent - entrada_anterior end,
+      saida_periodo   = case when v_sai < saida_anterior   then v_sai else v_sai - saida_anterior   end
+    where id = v_lm.id;
+    update leitura_maquinas set resultado = entrada_periodo - saida_periodo where id = v_lm.id;
+
+    -- Se esta é a leitura mais recente da máquina, ela passa a ser a base da próxima
+    if not exists (select 1 from leitura_maquinas m join leituras l on l.id = m.leitura_id
+                    where m.maquina_id = v_lm.maquina_id and l.data_hora > v_quando) then
+      update maquinas set entrada_atual = v_ent, saida_atual = v_sai where id = v_lm.maquina_id;
+    end if;
+  end loop;
+
+  if p ? 'despesas' then
+    delete from despesas where leitura_id = p_id;
+    insert into despesas (leitura_id, descricao, valor, categoria)
+    select p_id, d->>'descricao', (d->>'valor')::numeric, coalesce(d->>'categoria', 'outros')::categoria_despesa
+      from jsonb_array_elements(p->'despesas') d;
+  end if;
 
   update leituras set
-    total_entrada = v_tot_ent, total_saida = v_tot_sai, resultado = v_tot_ent - v_tot_sai,
-    total_despesas = v_tot_desp,
-    parte_ponto = v_div.parte_ponto, parte_empresa = v_div.parte_empresa,
-    caixa_esperado = v_div.caixa_esperado, caixa_apos_ponto = v_div.caixa_apos_ponto,
-    diferenca = v_recolhido - v_div.caixa_esperado
-  where id = v_id;
+    valor_recolhido    = case when p ? 'valor_recolhido' then nullif(p->>'valor_recolhido', '')::numeric else valor_recolhido end,
+    observacao         = coalesce(p->>'observacao', observacao),
+    ponto_pago_na_hora = coalesce((p->>'ponto_pago_na_hora')::boolean, ponto_pago_na_hora)
+  where id = p_id;
 
-  return v_id;
+  perform recalcular_leitura(p_id);
+
+  insert into leitura_alteracoes (leitura_id, alterado_por, motivo, dados_antes, dados_depois)
+  values (p_id, auth.uid(), trim(p_motivo), v_antes, leitura_json(p_id));
 end $$;
 
 -- =====================================================================
@@ -410,7 +509,7 @@ create policy ver_despesas_das_minhas_leituras on despesas for select to authent
 
 -- Quem não está logado não acessa nada
 revoke all on all tables in schema public from anon;
-revoke execute on all functions in schema public from public, anon;
+revoke execute on all functions in schema public from public, anon, authenticated;
 grant execute on function papel_atual(), eh_admin(), tem_acesso_ponto(uuid),
   calcular_divisao(numeric, numeric, numeric, regra_despesa),
-  salvar_leitura(jsonb), conferir_leitura(uuid) to authenticated;
+  salvar_leitura(jsonb), editar_leitura(uuid, jsonb, text), conferir_leitura(uuid) to authenticated;

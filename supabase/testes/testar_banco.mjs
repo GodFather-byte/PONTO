@@ -15,7 +15,7 @@ const ok = (nome, cond, extra = '') => {
 await db.exec(`
   create role anon nologin; create role authenticated nologin;
   create schema auth;
-  create table auth.users (id uuid primary key, raw_user_meta_data jsonb);
+  create table auth.users (id uuid primary key, raw_user_meta_data jsonb, email text);
   create function auth.uid() returns uuid language sql stable as
     $$ select nullif(current_setting('teste.uid', true), '')::uuid $$;
   grant usage on schema auth to authenticated;
@@ -80,6 +80,10 @@ ok('Mesmo exemplo com regra "antes da divisão"',
   +d.parte_ponto === 1600 && +d.parte_empresa === 2400 && +d.caixa_esperado === 4000,
   `ponto ${d.parte_ponto}, empresa ${d.parte_empresa}`);
 
+r = await db.query(`select * from calcular_divisao(-500, 0, 40, 'so_da_empresa')`);
+d = r.rows[0];
+ok('Resultado negativo: ponto fica com zero, empresa assume', +d.parte_ponto === 0 && +d.parte_empresa === -500);
+
 // ---------- Salvar leitura ----------
 r = await como(OPER, leitura(L1, P1, M1, 60000, 25000));
 ok('Operador salva leitura no ponto dele', !r.erro, r.erro);
@@ -130,6 +134,21 @@ ok('Dono 2 não confere leitura do ponto do Dono 1', !!r.erro);
 r = await como(DONO1, `select conferir_leitura('${L1}')`);
 d = (await db.query(`select conferido_em, conferido_por from leituras where id = '${L1}'`)).rows[0];
 ok('Dono 1 marca "Conferido" (data e hora gravadas)', !r.erro && d.conferido_em && d.conferido_por === DONO1);
+
+// ---------- Edição pelo Admin ----------
+const L2 = '30000000-0000-0000-0000-000000000002';
+const edicao = `select editar_leitura('${L2}', '${JSON.stringify({
+  ponto_pago_na_hora: true, valor_recolhido: 30,
+  maquinas: [{ maquina_id: M1, entrada_atual: 300, saida_atual: 50 }], despesas: [],
+})}'::jsonb, 'Erro de digitação')`;
+r = await como(OPER, edicao);
+ok('Operador não edita leitura salva', /Somente o Admin/.test(r.erro ?? ''));
+r = await como(ADMIN, edicao);
+d = (await db.query(`select l.*, (select count(*)::int from leitura_alteracoes where leitura_id = l.id) alt,
+                     (select entrada_atual from maquinas where id = '${M1}') maq from leituras l where id = '${L2}'`)).rows[0];
+ok('Admin edita, contas são refeitas e o histórico é gravado', !r.erro && +d.resultado === 250 && +d.parte_ponto === 100 &&
+  +d.caixa_apos_ponto === 150 && +d.diferenca === -120 && d.alt === 1 && +d.maq === 300,
+  r.erro ?? `resultado ${d.resultado}, ponto ${d.parte_ponto}, diferença ${d.diferenca}`);
 
 // ---------- Troca de ponto ----------
 await como(ADMIN, `update maquinas set ponto_id = '${P2}' where id = '${M1}'`);
