@@ -7,6 +7,8 @@ const fmtHora = new Intl.DateTimeFormat('pt-BR', { timeZone: FUSO, hour: '2-digi
 
 export const moeda = (v) => fmtMoeda.format(Number(v) || 0);
 export const numero = (v) => fmtNumero.format(Number(v) || 0);
+// 40 -> "40%", 37.5 -> "37,5%"
+export const percentual = (v) => `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 2 }).format(Number(v) || 0)}%`;
 export const data = (d) => (d ? fmtData.format(new Date(d)) : '');
 export const dataHora = (d) => (d ? `${fmtData.format(new Date(d))} ${fmtHora.format(new Date(d))}` : '');
 

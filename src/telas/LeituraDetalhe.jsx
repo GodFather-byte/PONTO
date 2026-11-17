@@ -8,6 +8,7 @@ import { aoMudarFila, sincronizar, removerDaFila } from '../lib/fila.js';
 import { moeda, numero, dataHora, nomeCategoria } from '../lib/formato.js';
 import { Tela, Cartao, Botao, Aviso, Linha } from '../componentes/ui.jsx';
 import Divisao, { Diferenca } from '../componentes/Divisao.jsx';
+import { textoRelatorio, linkWhatsApp, entregarPdf } from '../lib/relatorio.js';
 
 // Abre a foto do contador (o bucket é privado, então gera um link temporário)
 async function abrirFoto(caminho) {
@@ -22,6 +23,8 @@ export default function LeituraDetalhe() {
   const navegar = useNavigate();
   const [l, setL] = useState(undefined);
   const [alteracoes, setAlteracoes] = useState([]);
+  const [gerando, setGerando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     const carregar = () => buscarLeitura(id).then(setL);
@@ -38,6 +41,20 @@ export default function LeituraDetalhe() {
 
   if (l === undefined) return <Tela titulo="Leitura" voltar="/leituras"><Cartao>Carregando…</Cartao></Tela>;
   if (l === null) return <Tela titulo="Leitura" voltar="/leituras"><Cartao>Leitura não encontrada.</Cartao></Tela>;
+
+  // Relatório: o texto é o mesmo no WhatsApp e no "copiar"
+  const texto = textoRelatorio(l);
+  async function pdf() {
+    setGerando(true);
+    try { await entregarPdf(l); }
+    catch (e) { window.alert(`Não foi possível gerar o PDF: ${e.message}`); }
+    setGerando(false);
+  }
+  async function copiar() {
+    await navigator.clipboard.writeText(texto);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  }
 
   async function descartar() {
     if (window.confirm('Apagar esta leitura do aparelho? Ela NÃO foi enviada e será perdida.')) {
@@ -98,6 +115,17 @@ export default function LeituraDetalhe() {
         <Linha rotulo="Valor recolhido" valor={l.recolhido === null ? 'Não informado' : moeda(l.recolhido)} forte />
         <Diferenca valor={l.diferenca} />
         {l.observacao && <p className="pt-1 text-slate-700">Obs.: {l.observacao}</p>}
+      </Cartao>
+
+      <Cartao className="space-y-3">
+        <h2 className="font-semibold">Relatório</h2>
+        <a href={linkWhatsApp(l.pontoTelefone, texto)} target="_blank" rel="noreferrer"
+          className="flex min-h-14 w-full items-center justify-center rounded-xl bg-green-600 px-4 text-lg font-semibold text-white shadow-sm active:bg-green-700">
+          Enviar no WhatsApp
+        </a>
+        {!l.pontoTelefone && <p className="text-sm text-slate-500">Este ponto não tem WhatsApp cadastrado: você escolhe o contato na hora.</p>}
+        <Botao cor="escuro" onClick={pdf} disabled={gerando}>{gerando ? 'Gerando PDF…' : 'Gerar PDF'}</Botao>
+        <Botao cor="claro" onClick={copiar}>{copiado ? 'Texto copiado ✓' : 'Copiar texto'}</Botao>
       </Cartao>
 
       {perfil.papel === 'admin' && !l.pendente && (

@@ -1,6 +1,6 @@
 // Quadro com totais, divisão e o destaque "VALOR QUE DEVE ESTAR EM CAIXA".
 // Recebe os números já calculados (prévia do celular ou valores do servidor).
-import { moeda, numero, REGRAS } from '../lib/formato.js';
+import { moeda, percentual as pct, REGRAS } from '../lib/formato.js';
 import { Cartao, Linha } from './ui.jsx';
 
 export default function Divisao({ c, percentual, regra, pontoPago }) {
@@ -13,7 +13,7 @@ export default function Divisao({ c, percentual, regra, pontoPago }) {
         <Linha rotulo="Resultado bruto" valor={moeda(c.resultado)} forte />
         <Linha rotulo="Despesas" valor={moeda(c.totalDespesas)} />
         <div className="my-2 border-t border-slate-200" />
-        <Linha rotulo={`Parte do ponto (${numero(percentual)}%)`} valor={moeda(c.partePonto)} forte />
+        <Linha rotulo={`Parte do ponto (${pct(percentual)})`} valor={moeda(c.partePonto)} forte />
         <Linha rotulo="Parte da empresa" valor={moeda(c.parteEmpresa)} forte />
         <div className="pt-1 text-xs text-slate-500">Regra: {REGRAS[regra]}</div>
       </Cartao>
