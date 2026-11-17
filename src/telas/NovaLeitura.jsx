@@ -6,7 +6,9 @@ import { useSessao } from '../lib/sessao.jsx';
 import { carregarDados, enfileirar, sincronizar } from '../lib/fila.js';
 import { resumoLocal } from '../lib/leituras.js';
 import { calcularLeitura, calcularMaquina } from '../lib/calculos.js';
-import { paraNumero, numero, moeda } from '../lib/formato.js';
+import { paraNumero, paraCampo, numero, moeda, STATUS, dataSimples } from '../lib/formato.js';
+import Assinatura from '../componentes/Assinatura.jsx';
+import { Campo } from '../componentes/ui.jsx';
 import { reduzirFoto } from '../lib/fotos.js';
 import { Tela, Cartao, CampoValor, Botao, Marcador, Aviso } from '../componentes/ui.jsx';
 import Despesas, { lerDespesas } from '../componentes/Despesas.jsx';
@@ -50,6 +52,11 @@ function CartaoMaquina({ maquina, valor, onChange }) {
   return (
     <Cartao className="space-y-3">
       <div className="text-lg font-semibold">{maquina.codigo} · {maquina.nome_jogo}</div>
+      {maquina.status && maquina.status !== 'funcionando' && (
+        <span className={`inline-block rounded px-2 py-1 text-sm font-semibold ${STATUS[maquina.status].classe}`}>
+          {STATUS[maquina.status].icone} {STATUS[maquina.status].texto}
+        </span>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className="text-xs text-slate-500">Entrada anterior</div>
@@ -88,11 +95,17 @@ function CartaoMaquina({ maquina, valor, onChange }) {
   );
 }
 
-function Formulario({ ponto, maquinas }) {
+function Formulario({ ponto, maquinas, custos }) {
   const { perfil } = useSessao();
   const navegar = useNavigate();
   const [valores, setValores] = useState({});          // por máquina: { entrada, saida, zerado, foto }
-  const [linhasDespesa, setLinhasDespesa] = useState([]);
+  // Custos de manutenção marcados como "despesa do ponto" já entram na lista (dá para remover)
+  const [linhasDespesa, setLinhasDespesa] = useState(() => custos.map((c) => ({
+    descricao: `Manutenção ${c.maquinas?.codigo ?? ''} (${dataSimples(c.data)}): ${c.problema}`,
+    valor: paraCampo(c.custo), categoria: 'manutencao', manutencaoId: c.id,
+  })));
+  const [assinatura, setAssinatura] = useState(null);   // imagem da assinatura do responsável
+  const [assinaturaNome, setAssinaturaNome] = useState('');
   const [pontoPago, setPontoPago] = useState(false);
   const [recolhido, setRecolhido] = useState('');
   const [observacao, setObservacao] = useState('');
@@ -140,9 +153,11 @@ function Formulario({ ponto, maquinas }) {
     const id = crypto.randomUUID();
     const dataHora = new Date().toISOString();
     const caminhoFoto = (m) => (m.foto ? `${ponto.id}/${id}/${m.maquinaId}.jpg` : null);
+    const assinaturaCaminho = assinatura ? `${ponto.id}/${id}/assinatura.png` : null;
     const payload = {
       id, ponto_id: ponto.id, data_hora: dataHora, ponto_pago_na_hora: pontoPago,
       valor_recolhido: paraNumero(recolhido), observacao: observacao.trim(),
+      assinatura_caminho: assinaturaCaminho, assinatura_nome: assinatura ? assinaturaNome.trim() : '',
       maquinas: lidas.map((m) => ({
         maquina_id: m.maquinaId, entrada_atual: m.entradaAtual, saida_atual: m.saidaAtual,
         contador_zerado: m.zerado, foto_caminho: caminhoFoto(m),
@@ -152,9 +167,11 @@ function Formulario({ ponto, maquinas }) {
     const resumo = resumoLocal({
       id, ponto, operadorNome: perfil.nome, dataHora, despesas, pontoPago,
       recolhido: paraNumero(recolhido), observacao: observacao.trim(),
+      assinaturaCaminho, assinaturaNome: assinatura ? assinaturaNome.trim() : '',
       maquinas: lidas.map(({ foto, ...m }) => ({ ...m, fotoCaminho: caminhoFoto({ ...m, foto }) })),
     });
     const fotos = lidas.filter((m) => m.foto).map((m) => ({ caminho: caminhoFoto(m), blob: m.foto }));
+    if (assinatura) fotos.push({ caminho: assinaturaCaminho, blob: assinatura });
     try {
       await enfileirar({ id, payload, fotos, resumo });
       await Promise.race([sincronizar(), new Promise((ok) => setTimeout(ok, 8000))]); // não trava a tela com sinal ruim
@@ -187,6 +204,12 @@ function Formulario({ ponto, maquinas }) {
         </label>
       </Cartao>
 
+      <Cartao className="space-y-3">
+        <h2 className="font-semibold">Assinatura do responsável do ponto (opcional)</h2>
+        <Assinatura onChange={setAssinatura} />
+        {assinatura && <Campo rotulo="Nome de quem assinou" value={assinaturaNome} onChange={(e) => setAssinaturaNome(e.target.value)} />}
+      </Cartao>
+
       <Aviso tom="erro">{erro}</Aviso>
       <Botao onClick={salvar} disabled={ocupado} className="min-h-16 text-xl">{ocupado ? 'Salvando…' : 'Salvar leitura'}</Botao>
     </Tela>
@@ -202,5 +225,8 @@ export default function NovaLeitura() {
   if (!pontoId) return <EscolherPonto dados={dados} />;
   const ponto = dados.pontos.find((p) => p.id === pontoId);
   if (!ponto) return <Tela titulo="Nova leitura" voltar="/leitura"><Cartao>Ponto não encontrado.</Cartao></Tela>;
-  return <Formulario key={pontoId} ponto={ponto} maquinas={dados.maquinas.filter((m) => m.ponto_id === pontoId)} />;
+  return (
+    <Formulario key={pontoId} ponto={ponto} maquinas={dados.maquinas.filter((m) => m.ponto_id === pontoId)}
+      custos={(dados.custosManutencao ?? []).filter((c) => c.ponto_id === pontoId)} />
+  );
 }

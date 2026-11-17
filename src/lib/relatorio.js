@@ -55,6 +55,7 @@ export function textoRelatorio(l) {
     t.push(`Valor recolhido: ${rs(l.recolhido)}`, `Conferência: ${textoDiferenca(l)}`);
   }
   if (l.observacao) t.push('', `Obs.: ${l.observacao}`);
+  if (l.assinaturaCaminho) t.push('', `Assinado pelo responsável do ponto${l.assinaturaNome ? `: ${l.assinaturaNome}` : ''}`);
   return t.join('\n');
 }
 
@@ -73,7 +74,7 @@ export function nomeArquivoPdf(l) {
 }
 
 // Monta o PDF da leitura (A4). As bibliotecas só são carregadas quando o botão é usado.
-export async function gerarPdf(l) {
+export async function gerarPdf(l, assinatura = null) {   // assinatura: imagem em data URL (opcional)
   const [{ jsPDF }, { default: tabela }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const margem = 14, largura = 210 - margem * 2;
@@ -141,14 +142,38 @@ export async function gerarPdf(l) {
   y += 27;
 
   if (l.observacao) { doc.text(doc.splitTextToSize(`Obs.: ${l.observacao}`, largura), margem, y); y += 10; }
-  if (l.conferidoEm) doc.text(`Conferido pelo ponto em ${dataHora(l.conferidoEm)}`, margem, y);
+  if (l.conferidoEm) { doc.text(`Conferido pelo ponto em ${dataHora(l.conferidoEm)}`, margem, y); y += 8; }
+
+  // Assinatura do responsável do ponto
+  if (assinatura) {
+    if (y > 240) { doc.addPage(); y = 18; }
+    const { width, height } = doc.getImageProperties(assinatura);
+    const larg = 70, alt = Math.min(35, (height / width) * larg);
+    doc.addImage(assinatura, 'PNG', margem, y, larg, alt);
+    y += alt + 1;
+    doc.setDrawColor(100).line(margem, y, margem + larg, y);
+    doc.setFontSize(9).text(`Responsável do ponto${l.assinaturaNome ? `: ${l.assinaturaNome}` : ''}`, margem, y + 4);
+  }
   return doc;
 }
 
 // Gera o PDF e entrega: no celular abre o compartilhamento (dá para mandar no WhatsApp);
 // no computador, baixa o arquivo.
+// Busca a imagem da assinatura: na fila do aparelho (leitura ainda não enviada) ou no Supabase
+async function buscarAssinatura(l) {
+  if (!l.assinaturaCaminho) return null;
+  try {
+    const { listarFila } = await import('./fila.js');
+    const { supabase } = await import('./supabase.js');
+    let blob = (await listarFila()).flatMap((i) => i.fotos ?? []).find((f) => f.caminho === l.assinaturaCaminho)?.blob;
+    if (!blob) ({ data: blob } = await supabase.storage.from('contadores').download(l.assinaturaCaminho));
+    if (!blob) return null;
+    return await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(r.result); r.readAsDataURL(blob); });
+  } catch { return null; } // sem a imagem, o PDF sai sem assinatura em vez de falhar
+}
+
 export async function entregarPdf(l) {
-  const doc = await gerarPdf(l);
+  const doc = await gerarPdf(l, await buscarAssinatura(l));
   const nome = nomeArquivoPdf(l);
   const arquivo = new File([doc.output('blob')], nome, { type: 'application/pdf' });
   if (navigator.canShare?.({ files: [arquivo] })) {

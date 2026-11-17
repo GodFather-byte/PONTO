@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase.js';
-import { numero } from '../lib/formato.js';
+import { numero, STATUS } from '../lib/formato.js';
 import { Tela, Cartao, Aviso } from '../componentes/ui.jsx';
 
 export default function Maquinas() {
@@ -30,6 +30,9 @@ export default function Maquinas() {
             <Link key={m.id} to={`/maquinas/${m.id}`} className="block">
               <Cartao className={m.ativa ? '' : 'opacity-60'}>
                 <div className="text-lg font-semibold">{m.codigo} · {m.nome_jogo}{m.ativa ? '' : ' (inativa)'}</div>
+                {m.status !== 'funcionando' && STATUS[m.status] && (
+                  <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${STATUS[m.status].classe}`}>{STATUS[m.status].icone} {STATUS[m.status].texto}</span>
+                )}
                 <div className="text-sm text-slate-600 tabular-nums">
                   Entrada {numero(m.entrada_atual)} · Saída {numero(m.saida_atual)}
                 </div>

@@ -81,6 +81,17 @@ export async function buscarPeriodo(inicio, fim) {
   }
 }
 
+// Manutenções do período (para somar o custo que ficou só com a empresa)
+export async function buscarManutencoes(inicio, fim) {
+  const { data, error } = await supabase.from('manutencoes').select('custo, destino, leitura_id').gte('data', inicio).lte('data', fim);
+  if (error) throw error;
+  return {
+    soEmpresa: r2(data.filter((m) => m.destino === 'so_da_empresa').reduce((s, m) => s + Number(m.custo), 0)),
+    aLancar: r2(data.filter((m) => m.destino === 'despesa_do_ponto' && !m.leitura_id).reduce((s, m) => s + Number(m.custo), 0)),
+    qtd: data.length,
+  };
+}
+
 // Pontos ativos e há quantos dias estão sem leitura (null = nunca teve leitura)
 export async function pontosSemLeitura(limiteDias) {
   const { data, error } = await supabase.from('pontos').select('id, nome, leituras(data_local)')

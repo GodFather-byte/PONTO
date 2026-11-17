@@ -5,7 +5,7 @@ import { listarFila, comLimite } from './fila.js';
 import { calcularLeitura } from './calculos.js';
 
 // Resumo a partir do que o operador acabou de digitar (antes de chegar ao servidor)
-export function resumoLocal({ id, ponto, operadorNome, dataHora, maquinas, despesas, pontoPago, recolhido, observacao }) {
+export function resumoLocal({ id, ponto, operadorNome, dataHora, maquinas, despesas, pontoPago, recolhido, observacao, assinaturaCaminho = null, assinaturaNome = '' }) {
   const c = calcularLeitura({
     maquinas, despesas, percentual: Number(ponto.percentual_ponto), regra: ponto.regra_despesa, pontoPago, recolhido,
   });
@@ -19,6 +19,7 @@ export function resumoLocal({ id, ponto, operadorNome, dataHora, maquinas, despe
     // pago na hora = pago em dinheiro no dia da leitura (mesma regra do servidor)
     pagoEm: pontoPago ? new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(dataHora)) : null,
     pagoForma: pontoPago ? 'dinheiro' : null, pagoComprovante: null,
+    assinaturaCaminho, assinaturaNome,
     pontoPago, recolhido, diferenca: c.diferenca, observacao, conferidoEm: null, pendente: true,
   };
 }
@@ -43,6 +44,7 @@ export function resumoServidor(l) {
     totalDespesas: n(l.total_despesas), partePonto: n(l.parte_ponto), parteEmpresa: n(l.parte_empresa),
     caixaEsperado: n(l.caixa_esperado), caixaAposPonto: n(l.caixa_apos_ponto),
     pontoPago: l.ponto_pago_na_hora, recolhido: n(l.valor_recolhido), diferenca: n(l.diferenca),
+    assinaturaCaminho: l.assinatura_caminho ?? null, assinaturaNome: l.assinatura_nome ?? '',
     pagoEm: l.pago_em ?? null, pagoForma: l.pago_forma ?? null, pagoComprovante: l.pago_comprovante ?? null,
     observacao: l.observacao, conferidoEm: l.conferido_em, pendente: false,
   };

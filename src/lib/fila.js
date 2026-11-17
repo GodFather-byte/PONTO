@@ -26,18 +26,21 @@ export const comLimite = (promessa, ms = 6000) => Promise.race([
 export async function carregarDados() {
   try {
     if (!navigator.onLine) throw new Error('offline');
-    const [pontos, maquinas] = await comLimite(Promise.all([
+    const [pontos, maquinas, custos] = await comLimite(Promise.all([
       supabase.from('pontos').select('*').eq('ativo', true).order('nome'),
       supabase.from('maquinas').select('*').eq('ativa', true).order('codigo'),
+      // Custos de manutenção que ainda vão entrar como despesa na próxima leitura do ponto
+      supabase.from('manutencoes').select('id, ponto_id, data, problema, custo, maquinas(codigo)')
+        .eq('destino', 'despesa_do_ponto').is('leitura_id', null).gt('custo', 0).order('data'),
     ]));
-    if (pontos.error || maquinas.error) throw pontos.error || maquinas.error;
-    const dados = { pontos: pontos.data, maquinas: maquinas.data, atualizadoEm: new Date().toISOString() };
+    if (pontos.error || maquinas.error || custos.error) throw pontos.error || maquinas.error || custos.error;
+    const dados = { pontos: pontos.data, maquinas: maquinas.data, custosManutencao: custos.data, atualizadoEm: new Date().toISOString() };
     // Leituras ainda não enviadas já contam como "leitura anterior"
     for (const item of await listarFila()) aplicarNoCache(dados, item.payload);
     await set(CHAVE_DADOS, dados);
     return { ...dados, offline: false };
   } catch {
-    const dados = (await get(CHAVE_DADOS)) ?? { pontos: [], maquinas: [] };
+    const dados = { pontos: [], maquinas: [], custosManutencao: [], ...((await get(CHAVE_DADOS)) ?? {}) };
     return { ...dados, offline: true };
   }
 }
@@ -47,6 +50,9 @@ function aplicarNoCache(dados, payload) {
     const maq = dados.maquinas.find((x) => x.id === m.maquina_id);
     if (maq) { maq.entrada_atual = m.entrada_atual; maq.saida_atual = m.saida_atual; }
   }
+  // Custos de manutenção já lançados nesta leitura não são sugeridos de novo
+  const usados = new Set(payload.despesas.map((d) => d.manutencao_id).filter(Boolean));
+  if (usados.size) dados.custosManutencao = (dados.custosManutencao ?? []).filter((c) => !usados.has(c.id));
 }
 
 // ---------- Fila ----------
@@ -73,7 +79,7 @@ export async function sincronizar() {
       try {
         for (const foto of item.fotos ?? []) {
           const { error } = await supabase.storage.from('contadores')
-            .upload(foto.caminho, foto.blob, { contentType: 'image/jpeg' });
+            .upload(foto.caminho, foto.blob, { contentType: foto.blob.type || 'image/jpeg' });
           // "já existe" = foto enviada numa tentativa anterior; segue em frente
           if (error && !/exist|duplicate/i.test(error.message)) throw error;
         }

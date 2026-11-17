@@ -14,7 +14,7 @@ App web (PWA) para registrar leituras de máquinas em pontos, com divisão de re
 ## Versão 2
 
 - [x] Bloco 1 — Pagamentos aos pontos, comparativo mensal, média por máquina, desempenho do operador
-- [ ] Bloco 2 — Manutenção e assinatura na tela
+- [x] Bloco 2 — Manutenção e assinatura na tela
 - [ ] Bloco 3 — Backup e despesas fixas
 - [ ] Bloco 4 — Prospecção de pontos e rota do dia
 

@@ -33,6 +33,13 @@ export const CATEGORIAS = [
 export const nomeCategoria = (c) => CATEGORIAS.find(([k]) => k === c)?.[1] ?? c;
 export const REGRAS = { antes_da_divisao: 'Descontar antes da divisão', so_da_empresa: 'Descontar só da parte da empresa' };
 
+// Status da máquina (sempre com ícone + texto, nunca só cor)
+export const STATUS = {
+  funcionando: { texto: 'Funcionando', icone: '✓', classe: 'bg-emerald-100 text-emerald-900' },
+  com_defeito: { texto: 'Com defeito', icone: '⚠', classe: 'bg-amber-100 text-amber-900' },
+  parada:      { texto: 'Parada',      icone: '⛔', classe: 'bg-red-100 text-red-800' },
+};
+
 // Pagamento da parte do ponto
 export const FORMAS = { pix: 'Pix', dinheiro: 'Dinheiro' };
 // "2026-11-17" -> "17/11/2026" (datas sem hora)

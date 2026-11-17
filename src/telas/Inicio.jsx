@@ -37,6 +37,7 @@ export default function Inicio() {
       <Botao onClick={() => navegar('/leitura')} className="min-h-24 text-2xl">Nova leitura</Botao>
       <Botao cor="escuro" onClick={() => navegar('/leituras')}>Leituras</Botao>
       <Botao cor="escuro" onClick={() => navegar('/pagamentos')}>Pagamentos aos pontos</Botao>
+      <Botao cor="escuro" onClick={() => navegar('/manutencao')}>Manutenção</Botao>
 
       {perfil.papel === 'admin' && <>
         <Botao cor="escuro" onClick={() => navegar('/painel')}>Painel</Botao>

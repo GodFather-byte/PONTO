@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { moeda, nomeCategoria } from '../lib/formato.js';
 import {
-  hojeSP, somaDias, inicioSemana, inicioMes, dataBR, totalizar, ranking, controleCaixa, buscarPeriodo, pontosSemLeitura,
+  hojeSP, somaDias, inicioSemana, inicioMes, dataBR, totalizar, ranking, controleCaixa, buscarPeriodo, pontosSemLeitura, buscarManutencoes,
 } from '../lib/painel.js';
 import { csvLeituras, csvMaquinas, csvDespesas, baixar, gerarPdfPeriodo } from '../lib/exportar.js';
 import { Tela, Cartao, Campo, Botao, Aviso, Linha } from '../componentes/ui.jsx';
@@ -51,6 +51,7 @@ export default function Painel() {
   const [inicio, setInicio] = useState(inicioMes(hoje));
   const [fim, setFim] = useState(hoje);
   const [leituras, setLeituras] = useState(null);   // leituras do período escolhido
+  const [manut, setManut] = useState(null);         // custos de manutenção do período
   const [erro, setErro] = useState('');
   const [gerando, setGerando] = useState(false);
 
@@ -70,6 +71,8 @@ export default function Painel() {
     if (!inicio || !fim || inicio > fim) return;
     setLeituras(null);
     buscarPeriodo(inicio, fim).then(setLeituras).catch((e) => setErro(e.message));
+    setManut(null);
+    buscarManutencoes(inicio, fim).then(setManut).catch(() => setManut(null));
   }, [inicio, fim]);
 
   async function salvarDias() {
@@ -154,6 +157,12 @@ export default function Painel() {
           <Linha rotulo="Despesas" valor={moeda(t.despesas)} />
           <Linha rotulo="Parte dos pontos" valor={moeda(t.partePonto)} />
           <Linha rotulo="Parte da empresa" valor={moeda(t.parteEmpresa)} forte />
+          {manut && manut.qtd > 0 && <>
+            <div className="my-2 border-t border-slate-200" />
+            <Linha rotulo="Manutenção paga só pela empresa" valor={moeda(manut.soEmpresa)} />
+            <Linha rotulo="Empresa, já descontada a manutenção" valor={moeda(t.parteEmpresa - manut.soEmpresa)} forte />
+            {manut.aLancar > 0 && <Linha rotulo="Manutenção a descontar em próximas leituras" valor={moeda(manut.aLancar)} />}
+          </>}
         </Cartao>
 
         <Cartao>

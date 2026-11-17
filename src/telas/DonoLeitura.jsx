@@ -66,6 +66,14 @@ export default function DonoLeitura() {
         </Cartao>
       )}
 
+      {l.assinaturaCaminho && (
+        <Cartao>
+          <h2 className="font-semibold">Assinatura do responsável</h2>
+          {l.assinaturaNome && <div className="text-slate-600">Assinado por {l.assinaturaNome}</div>}
+          <FotoContador caminho={l.assinaturaCaminho} rotulo="Ver assinatura" />
+        </Cartao>
+      )}
+
       <Pagamento l={l} papel="dono" />
       {l.observacao && <Cartao>Obs.: {l.observacao}</Cartao>}
 

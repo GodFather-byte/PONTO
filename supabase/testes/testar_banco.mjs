@@ -21,7 +21,7 @@ await db.exec(`
   grant usage on schema auth to authenticated;
 `);
 // Aplica as migrações na ordem (a 0002 é só do Storage do Supabase e fica de fora)
-for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql']) {
+for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql', '0004_manutencao_assinatura.sql']) {
   await db.exec(readFileSync(new URL(`../migrations/${arquivo}`, import.meta.url), 'utf8'));
 }
 // No Supabase estes grants já vêm por padrão; quem restringe é o RLS
@@ -173,11 +173,39 @@ ok('Leitura "paga na hora" já nasce paga em dinheiro', d.ponto_pago_na_hora && 
 r = await como(ADMIN, `select desfazer_pagamento('${L2}')`);
 ok('Pagamento "na hora" só muda pela edição da leitura', /Editar leitura/.test(r.erro ?? ''));
 
+// ---------- Manutenção e assinatura (Versão 2) ----------
+const manut = (extra) => `select registrar_manutencao('${JSON.stringify({ maquina_id: M1, problema: 'Noteiro travando', custo: 150, ...extra })}'::jsonb) id`;
+r = await como(DONO1, manut({}));
+ok('Dono não registra manutenção', /Sem permissão/.test(r.erro ?? ''));
+r = await como(OPER, manut({ status: 'com_defeito', destino: 'despesa_do_ponto', peca_trocada: 'Noteiro', quem_fez: 'Técnico Beto' }));
+const MAN = r.linhas?.[0]?.id;
+d = (await db.query(`select status from maquinas where id = '${M1}'`)).rows[0];
+ok('Operador registra ocorrência e o status da máquina muda', !r.erro && d.status === 'com_defeito', r.erro);
+await como(ADMIN, manut({ status: 'funcionando', destino: 'so_da_empresa', custo: 80 }));
+r = await como(DONO1, `select count(*)::int n from manutencoes`);
+ok('Dono não vê o histórico de manutenção', r.linhas?.[0].n === 0);
+r = await como(OPER, `select count(*)::int n from manutencoes`);
+ok('Operador vê as ocorrências do ponto dele', r.linhas?.[0].n === 2);
+
+const comManut = (id, ent, sai) => `select salvar_leitura('${JSON.stringify({
+  id, ponto_id: P1, assinatura_caminho: `${P1}/${id}/assinatura.png`, assinatura_nome: 'Zé',
+  maquinas: [{ maquina_id: M1, entrada_atual: ent, saida_atual: sai }],
+  despesas: [{ descricao: 'Manutenção 001: Noteiro travando', valor: 150, categoria: 'manutencao', manutencao_id: MAN }],
+})}'::jsonb)`;
+const L5 = '30000000-0000-0000-0000-000000000005', L6 = '30000000-0000-0000-0000-000000000006';
+r = await como(OPER, comManut(L5, 1300, 50));
+d = (await db.query(`select l.total_despesas, l.assinatura_nome, l.assinatura_caminho, (select leitura_id from manutencoes where id = '${MAN}') lid from leituras l where id = '${L5}'`)).rows[0];
+ok('Custo de manutenção entra como despesa da leitura, com assinatura guardada',
+  !r.erro && +d.total_despesas === 150 && d.lid === L5 && d.assinatura_nome === 'Zé' && d.assinatura_caminho, r.erro);
+r = await como(OPER, comManut(L6, 1400, 50));
+d = (await db.query(`select total_despesas from leituras where id = '${L6}'`)).rows[0];
+ok('O mesmo custo não é cobrado duas vezes', !r.erro && +d.total_despesas === 0, r.erro);
+
 // ---------- Troca de ponto ----------
 await como(ADMIN, `update maquinas set ponto_id = '${P2}' where id = '${M1}'`);
 r = await db.query(`select count(*)::int n from maquina_movimentacoes where maquina_id = '${M1}'`);
 const hist = await como(DONO1, `select count(*)::int n from leitura_maquinas where maquina_id = '${M1}'`);
-ok('Admin troca máquina de ponto e o histórico fica', r.rows[0].n === 2 && hist.linhas?.[0].n === 2);
+ok('Admin troca máquina de ponto e o histórico fica', r.rows[0].n === 2 && hist.linhas?.[0].n === 4);
 
 console.log(falhas ? `\n${falhas} teste(s) falharam.` : '\nTodos os testes passaram.');
 process.exit(falhas ? 1 : 0);

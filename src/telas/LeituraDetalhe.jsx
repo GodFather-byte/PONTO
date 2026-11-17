@@ -109,6 +109,14 @@ export default function LeituraDetalhe() {
         {l.observacao && <p className="pt-1 text-slate-700">Obs.: {l.observacao}</p>}
       </Cartao>
 
+      {l.assinaturaCaminho && (
+        <Cartao>
+          <h2 className="font-semibold">Assinatura do responsável</h2>
+          {l.assinaturaNome && <div className="text-slate-600">Assinado por {l.assinaturaNome}</div>}
+          <FotoContador caminho={l.assinaturaCaminho} rotulo="Ver assinatura" />
+        </Cartao>
+      )}
+
       <Pagamento l={l} papel={perfil.papel} aoMudar={() => buscarLeitura(id).then(setL)} />
 
       <Cartao className="space-y-3">
