@@ -23,10 +23,10 @@ export function resumoLocal({ id, ponto, operadorNome, dataHora, maquinas, despe
 const n = (v) => (v === null || v === undefined ? null : Number(v));
 
 // Resumo a partir das linhas do banco
-function resumoServidor(l) {
+export function resumoServidor(l) {
   return {
     id: l.id, pontoId: l.ponto_id, pontoNome: l.pontos?.nome ?? '', pontoTelefone: l.pontos?.telefone ?? '',
-    dataHora: l.data_hora, operadorNome: l.operador_nome, percentual: n(l.percentual_ponto), regra: l.regra_despesa,
+    dataHora: l.data_hora, dataLocal: l.data_local, operadorNome: l.operador_nome, percentual: n(l.percentual_ponto), regra: l.regra_despesa,
     maquinas: (l.leitura_maquinas ?? []).sort((a, b) => a.id - b.id).map((m) => ({
       maquinaId: m.maquina_id, codigo: m.maquinas?.codigo ?? '', nomeJogo: m.maquinas?.nome_jogo ?? '',
       entradaAnterior: n(m.entrada_anterior), saidaAnterior: n(m.saida_anterior),

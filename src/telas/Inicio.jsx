@@ -37,6 +37,7 @@ export default function Inicio() {
       <Botao cor="escuro" onClick={() => navegar('/leituras')}>Leituras</Botao>
 
       {perfil.papel === 'admin' && <>
+        <Botao cor="escuro" onClick={() => navegar('/painel')}>Painel</Botao>
         <h2 className="px-1 pt-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Cadastros</h2>
         <Botao cor="claro" onClick={() => navegar('/pontos')}>Pontos</Botao>
         <Botao cor="claro" onClick={() => navegar('/maquinas')}>Máquinas</Botao>

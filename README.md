@@ -8,7 +8,7 @@ App web (PWA) para registrar leituras de máquinas em pontos, com divisão de re
 - [x] Etapa 2 — Cadastros, leitura, cálculos e despesas
 - [x] Etapa 3 — Relatório WhatsApp / PDF
 - [x] Etapa 4 — Área do dono do ponto + "Conferido"
-- [ ] Etapa 5 — Painel do admin + exportação
+- [x] Etapa 5 — Painel do admin + exportação
 - [ ] Etapa 6 — Passo a passo de publicação
 
 ## Rodar no computador
