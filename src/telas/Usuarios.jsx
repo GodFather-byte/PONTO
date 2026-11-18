@@ -1,10 +1,12 @@
 // Usuários (Admin): define o papel de cada conta e a quais pontos ela tem acesso
+// O banco só entrega ao Admin a própria conta e as contas de operadores e donos (nunca outros Admins).
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
 import { useSessao } from '../lib/sessao.jsx';
 import { Tela, Cartao, Selecao, Botao, Marcador, Aviso } from '../componentes/ui.jsx';
 
-const PAPEIS = { admin: 'Admin (acesso total)', operador: 'Operador (faz leitura)', dono: 'Dono do ponto (só visualiza)' };
+// Promover a Admin não é feito pelo app: cada Admin só enxerga e gerencia operadores e donos de ponto
+const PAPEIS = { operador: 'Operador (faz leitura)', dono: 'Dono do ponto (só visualiza)' };
 
 function CartaoUsuario({ usuario, pontos, vinculos, eu, aoSalvar }) {
   const [papel, setPapel] = useState(usuario.papel);
@@ -19,7 +21,7 @@ function CartaoUsuario({ usuario, pontos, vinculos, eu, aoSalvar }) {
     setOcupado(true); setMsg(null);
     let { error } = await supabase.from('perfis').update({ papel, ativo }).eq('id', usuario.id);
     if (!error) ({ error } = await supabase.from('usuario_pontos').delete().eq('usuario_id', usuario.id));
-    if (!error && papel !== 'admin' && marcados.size) {
+    if (!error && marcados.size) {
       ({ error } = await supabase.from('usuario_pontos')
         .insert([...marcados].map((ponto_id) => ({ usuario_id: usuario.id, ponto_id }))));
     }
@@ -40,7 +42,7 @@ function CartaoUsuario({ usuario, pontos, vinculos, eu, aoSalvar }) {
           {Object.entries(PAPEIS).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
         </Selecao>
         <Marcador rotulo="Conta ativa" checked={ativo} onChange={setAtivo} />
-        {papel !== 'admin' && (
+        {(
           <div>
             <div className="text-sm font-medium text-slate-600">Pontos liberados</div>
             {pontos.length === 0 && <div className="text-sm text-slate-500">Cadastre um ponto primeiro.</div>}

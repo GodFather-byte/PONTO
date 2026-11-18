@@ -21,7 +21,7 @@ await db.exec(`
   grant usage on schema auth to authenticated;
 `);
 // Aplica as migrações na ordem (a 0002 é só do Storage do Supabase e fica de fora)
-for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql', '0004_manutencao_assinatura.sql', '0005_fixas_backup_prospeccao.sql']) {
+for (const arquivo of ['0001_estrutura.sql', '0003_pagamentos.sql', '0004_manutencao_assinatura.sql', '0005_fixas_backup_prospeccao.sql', '0007_privacidade_usuarios.sql']) {
   await db.exec(readFileSync(new URL(`../migrations/${arquivo}`, import.meta.url), 'utf8'));
 }
 // No Supabase estes grants já vêm por padrão; quem restringe é o RLS
@@ -154,12 +154,12 @@ ok('Admin edita, contas são refeitas e o histórico é gravado', !r.erro && +d.
   r.erro ?? `resultado ${d.resultado}, ponto ${d.parte_ponto}, diferença ${d.diferenca}`);
 
 // ---------- Pagamentos aos pontos (Versão 2) ----------
-r = await como(DONO1, `select registrar_pagamento('${L1}', current_date, 'pix')`);
+r = await como(DONO1, `select registrar_pagamento('${L1}', (now() at time zone 'America/Sao_Paulo')::date, 'pix')`);
 ok('Dono não registra pagamento', /Sem permissão/.test(r.erro ?? ''));
-r = await como(OPER, `select registrar_pagamento('${L1}', current_date, 'pix', 'p/l/comprovante.jpg')`);
+r = await como(OPER, `select registrar_pagamento('${L1}', (now() at time zone 'America/Sao_Paulo')::date, 'pix', 'p/l/comprovante.jpg')`);
 d = (await db.query(`select pago_em, pago_forma, pago_comprovante, pago_por from leituras where id = '${L1}'`)).rows[0];
 ok('Operador registra pagamento (Pix, com comprovante)', !r.erro && d.pago_em && d.pago_forma === 'pix' && d.pago_comprovante && d.pago_por === OPER, r.erro);
-r = await como(OPER, `select registrar_pagamento('${L1}', current_date, 'dinheiro')`);
+r = await como(OPER, `select registrar_pagamento('${L1}', (now() at time zone 'America/Sao_Paulo')::date, 'dinheiro')`);
 ok('Pagamento em dobro é recusado', /já foi registrado/.test(r.erro ?? ''));
 r = await como(DONO1, `select pago_forma from leituras where id = '${L1}'`);
 ok('Dono vê o pagamento do próprio ponto', r.linhas?.[0]?.pago_forma === 'pix');
@@ -239,6 +239,23 @@ ok('Operador não vê a prospecção', r.linhas?.[0].n === 0);
 r = await como(ADMIN, `select converter_prospecto('50000000-0000-0000-0000-000000000001') id`);
 d = (await db.query(`select p.nome, p.telefone, p.percentual_ponto, x.status from pontos p join prospectos x on x.ponto_id = p.id`)).rows[0];
 ok('Prospecto fechado vira ponto cadastrado', !r.erro && d?.nome === 'Padaria Central' && d.telefone === '11988887777' && +d.percentual_ponto === 35 && d.status === 'fechado', r.erro);
+
+// ---------- Privacidade entre usuários ----------
+const ADMIN2 = '00000000-0000-0000-0000-00000000000e';
+await db.exec(`insert into auth.users values ('${ADMIN2}', '{"nome":"Outro Admin"}', 'outro@x.com'); update perfis set papel = 'admin' where id = '${ADMIN2}';`);
+r = await como(ADMIN2, `select nome, papel from perfis order by nome`);
+ok('Um Admin não enxerga os outros Admins (vê a si mesmo, operadores e donos)',
+  r.linhas?.length === 4 && r.linhas.filter((x) => x.papel === 'admin').length === 1 && r.linhas.some((x) => x.nome === 'Outro Admin'), JSON.stringify(r.linhas));
+r = await como(ADMIN2, `update perfis set papel = 'dono' where id = '${ADMIN}' returning id`);
+ok('Um Admin não altera a conta de outro Admin', !r.linhas?.length);
+r = await como(ADMIN2, `update perfis set papel = 'admin' where id = '${DONO2}' returning id`);
+ok('Promover alguém a Admin não é mais possível pelo app', !!r.erro || !r.linhas?.length);
+r = await como(ADMIN2, `update perfis set papel = 'operador' where id = '${DONO2}' returning id`);
+ok('Admin continua gerenciando operadores e donos', r.linhas?.length === 1, r.erro);
+await como(ADMIN2, `update perfis set papel = 'dono' where id = '${DONO2}'`);
+await como(ADMIN2, `select gerar_backup()`);
+d = (await db.query(`select (select count(*)::int from jsonb_array_elements(dados->'perfis') x where x->>'papel' = 'admin') n, jsonb_array_length(dados->'perfis') total from backups order by id desc limit 1`)).rows[0];
+ok('Backup não leva os dados dos Admins', d.n === 0 && d.total === 3);
 
 // ---------- Troca de ponto ----------
 await como(ADMIN, `update maquinas set ponto_id = '${P2}' where id = '${M1}'`);
